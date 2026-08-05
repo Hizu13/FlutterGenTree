@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/app_color.dart';
+import '../../member/screens/member_list_screen.dart';
+
 
 /// Màn hình Trang Chủ (Home Screen) của ứng dụng Quản Lý Gia Phả (Demogentree).
 /// Thiết kế chuẩn theo phác thảo Figma, sử dụng bảng màu hệ thống AppColors.
@@ -357,7 +359,12 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.groups_outlined,
               title: 'Thành viên',
               subtitle: 'Xem danh sách thành viên',
-              onTap: () {},
+               onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MemberListScreen()),
+                );
+              },
             ),
           ),
           _buildVerticalDivider(),
@@ -790,6 +797,14 @@ class _HomeScreenState extends State<HomeScreen> {
       child: BottomNavigationBar(
         currentIndex: _currentBottomIndex,
         onTap: (index) {
+          if (index == 1) {
+            // Tab Thành viên → navigate to MemberListScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MemberListScreen()),
+            );
+            return;
+          }
           setState(() {
             _currentBottomIndex = index;
           });
