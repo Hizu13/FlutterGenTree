@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/app_color.dart';
+import '../../event/models/event_model.dart';
+import '../../event/screens/event_screen.dart';
 
 /// Màn hình Trang Chủ (Home Screen) của ứng dụng Quản Lý Gia Phả (Demogentree).
 /// Thiết kế chuẩn theo phác thảo Figma, sử dụng bảng màu hệ thống AppColors.
@@ -14,14 +16,31 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentBottomIndex = 0;
   bool _showRoleMenu = false;
   bool _isEventNotified = false;
+  final List<EventModel> _events = EventModel.sampleEvents;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        top: false,
-        child: Stack(
+      body: SafeArea(top: false, child: _buildPageContent()),
+
+      // 6. Thanh Bottom Navigation Bar phía dưới
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildPageContent() {
+    switch (_currentBottomIndex) {
+      case 1:
+        return _buildPlaceholderScreen('Thành viên');
+      case 2:
+        return _buildPlaceholderScreen('Nhận diện AI');
+      case 3:
+        return EventScreen(events: _events);
+      case 4:
+        return _buildPlaceholderScreen('Thu chi');
+      default:
+        return Stack(
           children: [
             // Nội dung chính cuộn dọc
             SingleChildScrollView(
@@ -67,11 +86,58 @@ class _HomeScreenState extends State<HomeScreen> {
             // Popup menu tùy chọn Role (Quản trị, Hồ sơ cá nhân, Đăng xuất)
             if (_showRoleMenu) _buildRolePopupMenu(),
           ],
-        ),
-      ),
+        );
+    }
+  }
 
-      // 6. Thanh Bottom Navigation Bar phía dưới
-      bottomNavigationBar: _buildBottomNavigationBar(),
+  Widget _buildPlaceholderScreen(String title) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 16,
+            bottom: 14,
+            left: 20,
+            right: 20,
+          ),
+          decoration: const BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(20),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Icon(Icons.more_horiz_rounded, color: Colors.white),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: Text(
+              'Trang $title đang được phát triển.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 15,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -120,10 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   'Xin chào,',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 SizedBox(height: 2),
                 Text(
@@ -152,7 +215,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Nút chuông thông báo
                 IconButton(
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   icon: const Icon(
                     Icons.notifications_none_rounded,
                     color: Colors.white,
@@ -164,7 +230,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Nút ba chấm (...) mở Popup Role
                 IconButton(
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   icon: const Icon(
                     Icons.more_horiz_rounded,
                     color: Colors.white,
@@ -366,7 +435,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.calendar_month_outlined,
               title: 'Sự kiện',
               subtitle: 'Lịch và sự kiện',
-              onTap: () {},
+              onTap: () {
+                setState(() {
+                  _currentBottomIndex = 3;
+                });
+              },
             ),
           ),
           _buildVerticalDivider(),
@@ -384,11 +457,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildVerticalDivider() {
-    return Container(
-      height: 40,
-      width: 1,
-      color: AppColors.divider,
-    );
+    return Container(height: 40, width: 1, color: AppColors.divider);
   }
 
   Widget _buildActionItem({
@@ -411,13 +480,11 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppColors.surfaceWarm,
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.6),
+                ),
               ),
-              child: Icon(
-                icon,
-                color: AppColors.primaryMedium,
-                size: 24,
-              ),
+              child: Icon(icon, color: AppColors.primaryMedium, size: 24),
             ),
             const SizedBox(height: 8),
             Text(
@@ -487,7 +554,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Nút "Mở Camera AI"
                 ElevatedButton.icon(
                   onPressed: () {},
-                  icon: const Icon(Icons.camera_alt_outlined, size: 16, color: Colors.white),
+                  icon: const Icon(
+                    Icons.camera_alt_outlined,
+                    size: 16,
+                    color: Colors.white,
+                  ),
                   label: const Text(
                     'Mở Camera AI',
                     style: TextStyle(
@@ -500,7 +571,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     backgroundColor: AppColors.primaryMedium,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -547,7 +621,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Padding(
                               padding: const EdgeInsets.all(8),
                               child: CustomPaint(
-                                painter: CameraCornerPainter(color: AppColors.primaryLightGold),
+                                painter: CameraCornerPainter(
+                                  color: AppColors.primaryLightGold,
+                                ),
                               ),
                             ),
                           ),
@@ -583,6 +659,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // 5. SECTION SỰ KIỆN SẮP TỚI
   // ===========================================================================
   Widget _buildUpcomingEventSection() {
+    final EventModel nextEvent = _events.first;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -609,7 +687,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             InkWell(
-              onTap: () {},
+              onTap: () {
+                setState(() {
+                  _currentBottomIndex = 3;
+                });
+              },
               child: const Row(
                 children: [
                   Text(
@@ -657,30 +739,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.dateBadge,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      '24',
-                      style: TextStyle(
+                      nextEvent.dayString,
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         height: 1.0,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      'THÁNG 05',
-                      style: TextStyle(
+                      nextEvent.monthLabel,
+                      style: const TextStyle(
                         fontSize: 8.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.white70,
                       ),
                     ),
                     Text(
-                      '2024',
-                      style: TextStyle(
+                      nextEvent.yearLabel,
+                      style: const TextStyle(
                         fontSize: 8.5,
                         color: Colors.white70,
                       ),
@@ -695,26 +777,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Giỗ Tổ Họ Nguyễn',
-                      style: TextStyle(
+                    Text(
+                      nextEvent.title,
+                      style: const TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.access_time_rounded,
                           size: 13,
                           color: AppColors.textSecondary,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
-                          '08:00 - 12:00',
-                          style: TextStyle(
+                          nextEvent.time,
+                          style: const TextStyle(
                             fontSize: 11.5,
                             color: AppColors.textSecondary,
                           ),
@@ -722,26 +804,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                        SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Từ đường họ Nguyễn, Hà Nội',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -756,15 +818,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: _isEventNotified ? AppColors.surfaceWarm : AppColors.surfaceMuted,
+                    color: _isEventNotified
+                        ? AppColors.surfaceWarm
+                        : AppColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: _isEventNotified ? AppColors.primaryGold : AppColors.border,
+                      color: _isEventNotified
+                          ? AppColors.primaryGold
+                          : AppColors.border,
                     ),
                   ),
                   child: Icon(
-                    _isEventNotified ? Icons.notifications_active_rounded : Icons.notifications_none_rounded,
-                    color: _isEventNotified ? AppColors.primaryGold : AppColors.textSecondary,
+                    _isEventNotified
+                        ? Icons.notifications_active_rounded
+                        : Icons.notifications_none_rounded,
+                    color: _isEventNotified
+                        ? AppColors.primaryGold
+                        : AppColors.textSecondary,
                     size: 20,
                   ),
                 ),
@@ -783,17 +853,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.border, width: 1),
-        ),
+        border: Border(top: BorderSide(color: AppColors.border, width: 1)),
       ),
       child: BottomNavigationBar(
         currentIndex: _currentBottomIndex,
-        onTap: (index) {
-          setState(() {
-            _currentBottomIndex = index;
-          });
-        },
         type: BottomNavigationBarType.fixed,
         backgroundColor: AppColors.white,
         selectedItemColor: AppColors.primaryDark,
@@ -801,14 +864,16 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedFontSize: 11,
         unselectedFontSize: 11,
         elevation: 0,
+        onTap: (index) {
+          setState(() {
+            _currentBottomIndex = index;
+          });
+        },
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_rounded),
             activeIcon: Column(
-              children: [
-                Icon(Icons.home_rounded),
-                SizedBox(height: 2),
-              ],
+              children: [Icon(Icons.home_rounded), SizedBox(height: 2)],
             ),
             label: 'Trang chủ',
           ),
@@ -858,16 +923,40 @@ class CameraCornerPainter extends CustomPainter {
     canvas.drawLine(const Offset(0, 0), const Offset(0, cornerLength), paint);
 
     // Góc trên - phải
-    canvas.drawLine(Offset(size.width, 0), Offset(size.width - cornerLength, 0), paint);
-    canvas.drawLine(Offset(size.width, 0), Offset(size.width, cornerLength), paint);
+    canvas.drawLine(
+      Offset(size.width, 0),
+      Offset(size.width - cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width, 0),
+      Offset(size.width, cornerLength),
+      paint,
+    );
 
     // Góc dưới - trái
-    canvas.drawLine(Offset(0, size.height), Offset(cornerLength, size.height), paint);
-    canvas.drawLine(Offset(0, size.height), Offset(0, size.height - cornerLength), paint);
+    canvas.drawLine(
+      Offset(0, size.height),
+      Offset(cornerLength, size.height),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height),
+      Offset(0, size.height - cornerLength),
+      paint,
+    );
 
     // Góc dưới - phải
-    canvas.drawLine(Offset(size.width, size.height), Offset(size.width - cornerLength, size.height), paint);
-    canvas.drawLine(Offset(size.width, size.height), Offset(size.width, size.height - cornerLength), paint);
+    canvas.drawLine(
+      Offset(size.width, size.height),
+      Offset(size.width - cornerLength, size.height),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width, size.height),
+      Offset(size.width, size.height - cornerLength),
+      paint,
+    );
   }
 
   @override
