@@ -4,6 +4,8 @@ import '../models/member_model.dart';
 import '../widgets/member_card.dart';
 import '../widgets/member_filter_bar.dart';
 import '../widgets/member_summary_card.dart';
+import 'add_member_screen.dart';
+
 
 /// Màn hình Danh Sách Thành Viên.
 /// Thiết kế theo Figma: AppBar nâu đậm, ô tìm kiếm, bộ lọc Đời/Giới tính/Địa chỉ,
@@ -393,14 +395,27 @@ class _MemberListScreenState extends State<MemberListScreen> {
   }
 
   void _onAddMember() {
-    // TODO: Navigate to add member screen
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddMemberScreen(
+          existingMembers: _allMembers,
+          onSaved: (newMember) {
+            setState(() {
+              _allMembers.add(newMember);
+            });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Thêm thành viên mới'),
-        backgroundColor: AppColors.primaryGold,
+      SnackBar(
+                content: Text('Đã thêm thành viên: ${newMember.fullName}'),
+                backgroundColor: AppColors.primaryMedium,
         behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 1),
-      ),
+   shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
+        ),      ),
     );
   }
 
