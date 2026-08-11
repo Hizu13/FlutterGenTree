@@ -658,6 +658,8 @@ class _HomeContentViewState extends State<_HomeContentView> {
   // 5. SECTION SỰ KIỆN SẮP TỚI
   // ===========================================================================
   Widget _buildUpcomingEventSection() {
+    final EventModel nextEvent = _events.first;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -729,22 +731,22 @@ class _HomeContentViewState extends State<_HomeContentView> {
                   color: AppColors.dateBadge,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      '24',
-                      style: TextStyle(
+                      nextEvent.dayString,
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         height: 1.0,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      'THÁNG 05',
-                      style: TextStyle(
+                      nextEvent.monthLabel,
+                      style: const TextStyle(
                         fontSize: 8.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.white70,
@@ -763,26 +765,26 @@ class _HomeContentViewState extends State<_HomeContentView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Giỗ Tổ Họ Nguyễn',
-                      style: TextStyle(
+                    Text(
+                      nextEvent.title,
+                      style: const TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.access_time_rounded,
                           size: 13,
                           color: AppColors.textSecondary,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
-                          '08:00 - 12:00',
-                          style: TextStyle(
+                          nextEvent.time,
+                          style: const TextStyle(
                             fontSize: 11.5,
                             color: AppColors.textSecondary,
                           ),
@@ -790,26 +792,6 @@ class _HomeContentViewState extends State<_HomeContentView> {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                        SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Từ đường họ Nguyễn, Hà Nội',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
