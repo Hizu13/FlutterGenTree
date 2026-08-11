@@ -9,13 +9,17 @@ class AddMemberScreen extends StatefulWidget {
   /// Danh sách thành viên hiện có (để chọn bố/mẹ)
   final List<MemberModel> existingMembers;
 
-  /// Callback khi lưu thành công, trả về MemberModel vừa tạo
+  /// Callback khi lưu thành công, trả về MemberModel vừa tạo/cập nhật
   final ValueChanged<MemberModel> onSaved;
 
+  /// Thành viên cần chỉnh sửa (nếu có)
+  final MemberModel? initialMember;
   const AddMemberScreen({
     super.key,
     required this.existingMembers,
     required this.onSaved,
+    this.initialMember,
+
   });
 
   @override
@@ -45,7 +49,37 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   String _status = 'Còn sống';
   MemberModel? _selectedFather;
   MemberModel? _selectedMother;
-
+  
+  @override
+  void initState() {
+    super.initState();
+    final init = widget.initialMember;
+    if (init != null) {
+      _nameCtrl.text = init.fullName;
+      _dobCtrl.text = init.dateOfBirth ?? '';
+      _pobCtrl.text = init.placeOfBirth ?? '';
+      _phoneCtrl.text = init.phoneNumber ?? '';
+      _emailCtrl.text = init.email ?? '';
+      _addressCtrl.text = init.currentAddress ?? '';
+      _dodCtrl.text = init.dateOfDeath ?? '';
+      _placeOfDeathCtrl.text = init.placeOfDeath ?? '';
+      _occupationCtrl.text = init.occupation ?? '';
+      _notesCtrl.text = init.notes ?? '';
+      _identityCardCtrl.text = init.identityCard ?? '';
+      _gender = init.gender;
+      _status = init.status;
+      if (init.fatherId != null) {
+        try {
+          _selectedFather = widget.existingMembers.firstWhere((m) => m.id == init.fatherId);
+        } catch (_) {}
+      }
+      if (init.motherId != null) {
+        try {
+          _selectedMother = widget.existingMembers.firstWhere((m) => m.id == init.motherId);
+        } catch (_) {}
+      }
+    }
+  }
   @override
   void dispose() {
     _scrollCtrl.dispose();
@@ -75,9 +109,9 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   void _save() {
     if (!_formKey.currentState!.validate()) return;
 
-    final newId = DateTime.now().millisecondsSinceEpoch.toString();
+    final id = widget.initialMember?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
     final member = MemberModel(
-      id: newId,
+      id: id,
       fullName: _nameCtrl.text.trim(),
       gender: _gender,
       status: _status,
@@ -94,6 +128,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       placeOfDeath: _placeOfDeathCtrl.text.trim().isEmpty ? null : _placeOfDeathCtrl.text.trim(),
       occupation: _occupationCtrl.text.trim().isEmpty ? null : _occupationCtrl.text.trim(),
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      generation: widget.initialMember?.generation,
+      avatarUrl: widget.initialMember?.avatarUrl,
     );
 
     widget.onSaved(member);
@@ -238,21 +274,21 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           const SizedBox(width: 12),
 
           // Tiêu đề
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Thêm thành viên',
-                  style: TextStyle(
+                   widget.initialMember != null ? 'Chỉnh sửa thành viên' : 'Thêm thành viên',
+                    style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
                 Text(
-                  'Nhập thông tin thành viên mới',
-                  style: TextStyle(
+                  widget.initialMember != null ? 'Cập nhật thông tin thành viên' : 'Nhập thông tin thành viên mới',
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Colors.white70,
                   ),

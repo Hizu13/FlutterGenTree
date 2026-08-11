@@ -5,6 +5,8 @@ import '../widgets/member_card.dart';
 import '../widgets/member_filter_bar.dart';
 import '../widgets/member_summary_card.dart';
 import 'add_member_screen.dart';
+import 'member_profile_screen.dart';
+
 
 
 /// Màn hình Danh Sách Thành Viên.
@@ -382,14 +384,25 @@ class _MemberListScreenState extends State<MemberListScreen> {
   // ACTIONS
   // ===========================================================================
   void _onMemberTap(MemberModel member) {
-    // TODO: Navigate to member detail screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Xem hồ sơ: ${member.fullName}'),
-        backgroundColor: AppColors.primaryMedium,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 1),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MemberProfileScreen(
+          member: member,
+          allMembers: _allMembers,
+          onUpdated: (updated) {
+            setState(() {
+              final idx = _allMembers.indexWhere((m) => m.id == updated.id);
+              if (idx != -1) {
+                _allMembers[idx] = updated;
+              }
+            });
+          },
+          onMemberAdded: (newMember) {
+            setState(() {
+              _allMembers.add(newMember);
+            });
+          },
+        ),
       ),
     );
   }
@@ -423,8 +436,49 @@ class _MemberListScreenState extends State<MemberListScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _MemberOptionsSheet(member: member),
-    );
+builder: (_) => _MemberOptionsSheet(
+        member: member,
+        onViewProfile: () {
+          Navigator.pop(context);
+          _onMemberTap(member);
+        },
+        onEdit: () {
+          Navigator.pop(context);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AddMemberScreen(
+                existingMembers: _allMembers,
+                initialMember: member,
+                onSaved: (updated) {
+                  setState(() {
+                    final idx = _allMembers.indexWhere((m) => m.id == updated.id);
+                    if (idx != -1) {
+                      _allMembers[idx] = updated;
+                    }
+                  });
+                },
+              ),
+            ),
+          );
+        },
+        onDelete: () {
+          Navigator.pop(context);
+          setState(() {
+            _allMembers.removeWhere((m) => m.id == member.id);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Đã xóa thành viên: ${member.fullName}'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        },
+      ),    );
   }
 
   void _showSortBottomSheet() {
@@ -450,8 +504,16 @@ class _MemberListScreenState extends State<MemberListScreen> {
 // =============================================================================
 class _MemberOptionsSheet extends StatelessWidget {
   final MemberModel member;
-  const _MemberOptionsSheet({required this.member});
+  final VoidCallback? onViewProfile;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
+  const _MemberOptionsSheet({
+    required this.member,
+    this.onViewProfile,
+    this.onEdit,
+    this.onDelete,
+  });
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -489,25 +551,50 @@ class _MemberOptionsSheet extends StatelessWidget {
           const SizedBox(height: 4),
           const Divider(color: AppColors.divider),
 
-          _buildOption(context, icon: Icons.person_outline_rounded, label: 'Xem hồ sơ', color: AppColors.textPrimary),
-          _buildOption(context, icon: Icons.edit_outlined, label: 'Chỉnh sửa thông tin', color: AppColors.primaryMedium),
-          _buildOption(context, icon: Icons.account_tree_outlined, label: 'Xem trong sơ đồ gia phả', color: AppColors.primaryGold),
+          _buildOption(
+            context,
+            icon: Icons.person_outline_rounded,
+            label: 'Xem hồ sơ',
+            color: AppColors.textPrimary,
+            onTap: onViewProfile,
+          ),
+          _buildOption(
+            context,
+            icon: Icons.edit_outlined,
+            label: 'Chỉnh sửa thông tin',
+            color: AppColors.primaryMedium,
+            onTap: onEdit,
+          ),
+          _buildOption(
+            context,
+            icon: Icons.account_tree_outlined,
+            label: 'Xem trong sơ đồ gia phả',
+            color: AppColors.primaryGold,
+            onTap: () => Navigator.pop(context),
+          ),
           const Divider(color: AppColors.divider, height: 1),
-          _buildOption(context, icon: Icons.delete_outline_rounded, label: 'Xóa thành viên', color: AppColors.error),
-
+_buildOption(
+            context,
+            icon: Icons.delete_outline_rounded,
+            label: 'Xóa thành viên',
+            color: AppColors.error,
+            onTap: onDelete,
+          ),
           const SizedBox(height: 12),
         ],
       ),
     );
   }
 
-  Widget _buildOption(BuildContext context, {
-    required IconData icon,
+ Widget _buildOption(
+    BuildContext context, {    required IconData icon,
     required String label,
     required Color color,
+    VoidCallback? onTap,
+
   }) {
     return InkWell(
-      onTap: () => Navigator.pop(context),
+      onTap: onTap ?? () => Navigator.pop(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         child: Row(
