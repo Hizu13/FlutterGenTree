@@ -37,6 +37,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   final _placeOfDeathCtrl = TextEditingController();
   final _occupationCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _identityCardCtrl = TextEditingController();
+
 
   // ── State ─────────────────────────────────────────────────────────────────
   String _gender = 'Nam';
@@ -57,6 +59,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     _placeOfDeathCtrl.dispose();
     _occupationCtrl.dispose();
     _notesCtrl.dispose();
+    _identityCardCtrl.dispose();
     super.dispose();
   }
 
@@ -334,17 +337,14 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   // SECTION 1: THÔNG TIN CÁ NHÂN
   // ===========================================================================
   Widget _buildPersonalInfoSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Ảnh đại diện
             _buildAvatarPicker(),
             const SizedBox(width: 16),
 
-            // Họ và tên + Giới tính + Trạng thái
+            // Cột thông tin bên phải
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,18 +383,13 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                           children: [
                             _buildLabel('Trạng thái'),
                             _buildStatusDropdown(),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
           ],
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
         // Ngày sinh + Nơi sinh
         Row(
@@ -428,6 +423,18 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               ),
             ),
           ],
+             ),
+
+              const SizedBox(height: 10),
+
+              // Căn cước công dân
+              _buildLabel('Căn cước công dân'),
+              _buildTextFormField(
+                controller: _identityCardCtrl,
+                hint: 'Nhập căn cước công dân',
+              ),
+            ],
+          ),
         ),
       ],
     );
