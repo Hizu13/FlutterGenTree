@@ -22,6 +22,8 @@ class MemberModel {
   final String? notes;
   final String? avatarUrl;
   final int? generation; // Đời thứ mấy
+  final String? identityCard; // Số Căn cước công dân
+
 
   const MemberModel({
     this.id,
@@ -43,6 +45,8 @@ class MemberModel {
     this.notes,
     this.avatarUrl,
     this.generation,
+    this.identityCard,
+
   });
 
   MemberModel copyWith({
@@ -65,6 +69,8 @@ class MemberModel {
     String? notes,
     String? avatarUrl,
     int? generation,
+    String? identityCard,
+
   }) {
     return MemberModel(
       id: id ?? this.id,
@@ -86,6 +92,8 @@ class MemberModel {
       notes: notes ?? this.notes,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       generation: generation ?? this.generation,
+      identityCard: identityCard ?? this.identityCard,
+
     );
   }
 
@@ -110,6 +118,8 @@ class MemberModel {
       'notes': notes,
       'avatarUrl': avatarUrl,
       'generation': generation,
+      'identityCard': identityCard,
+
     };
   }
 
@@ -134,6 +144,8 @@ class MemberModel {
       notes: json['notes'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
       generation: json['generation'] as int?,
+      identityCard: json['identityCard'] as String?,
+
     );
   }
 }
