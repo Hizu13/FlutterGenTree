@@ -6,6 +6,8 @@ import '../widgets/member_filter_bar.dart';
 import '../widgets/member_summary_card.dart';
 import 'add_member_screen.dart';
 import 'member_profile_screen.dart';
+import '../repositories/member_repository.dart';
+
 
 
 
@@ -27,9 +29,8 @@ class _MemberListScreenState extends State<MemberListScreen> {
   String? _selectedGender;
   String? _selectedAddress;
 
-  // ── Dữ liệu mẫu ────────────────────────────────────────────────────────────
-  final List<MemberModel> _allMembers = _generateSampleData();
-
+ // ── Dữ liệu toàn cục từ Repository ──────────────────────────────────────────
+  final List<MemberModel> _allMembers = MemberRepository.members;
   List<MemberModel> get _filteredMembers {
     return _allMembers.where((m) {
       // Lọc theo tìm kiếm
@@ -693,125 +694,4 @@ class _SortSheet extends StatelessWidget {
       ),
     );
   }
-}
-
-// =============================================================================
-// DỮ LIỆU MẪU
-// =============================================================================
-List<MemberModel> _generateSampleData() {
-  return [
-    const MemberModel(
-      id: '1',
-      fullName: 'Nguyễn Văn Thành',
-      gender: 'Nam',
-      status: 'Đã mất',
-      dateOfBirth: '01/01/1900',
-      placeOfBirth: 'Hà Nội',
-      currentAddress: 'Hà Nội',
-      phoneNumber: '0123 456 789',
-      generation: 2,
-      occupation: 'Quan lại',
-    ),
-    const MemberModel(
-      id: '2',
-      fullName: 'Nguyễn Thị Bình',
-      gender: 'Nữ',
-      status: 'Đã mất',
-      dateOfBirth: '01/01/1905',
-      placeOfBirth: 'Hà Nội',
-      currentAddress: 'Hà Nội',
-      phoneNumber: '0123 456 789',
-      generation: 2,
-    ),
-    const MemberModel(
-      id: '3',
-      fullName: 'Nguyễn Văn Hùng',
-      gender: 'Nam',
-      status: 'Còn sống',
-      dateOfBirth: '15/06/1950',
-      placeOfBirth: 'Hà Nam',
-      currentAddress: 'Hà Nam',
-      phoneNumber: '0987 654 321',
-      generation: 3,
-      occupation: 'Nông nghiệp',
-    ),
-    const MemberModel(
-      id: '4',
-      fullName: 'Nguyễn Thị Lan',
-      gender: 'Nữ',
-      status: 'Còn sống',
-      dateOfBirth: '20/03/1955',
-      placeOfBirth: 'Hưng Yên',
-      currentAddress: 'Hưng Yên',
-      phoneNumber: '0912 345 678',
-      generation: 3,
-    ),
-    const MemberModel(
-      id: '5',
-      fullName: 'Nguyễn Văn Minh',
-      gender: 'Nam',
-      status: 'Còn sống',
-      dateOfBirth: '10/09/1978',
-      placeOfBirth: 'Hà Nội',
-      currentAddress: 'Hà Nội',
-      phoneNumber: '0901 234 567',
-      generation: 4,
-      occupation: 'Kỹ sư',
-    ),
-    const MemberModel(
-      id: '6',
-      fullName: 'Nguyễn Thị Thu Hà',
-      gender: 'Nữ',
-      status: 'Còn sống',
-      dateOfBirth: '05/12/1982',
-      placeOfBirth: 'Hà Nội',
-      currentAddress: 'Hà Nội',
-      phoneNumber: '0977 111 222',
-      generation: 4,
-      occupation: 'Giáo viên',
-    ),
-    const MemberModel(
-      id: '7',
-      fullName: 'Nguyễn Văn Quang',
-      gender: 'Nam',
-      status: 'Còn sống',
-      dateOfBirth: '22/07/1985',
-      placeOfBirth: 'Hà Nam',
-      currentAddress: 'Hà Nam',
-      phoneNumber: '0933 222 333',
-      generation: 4,
-      occupation: 'Bác sĩ',
-    ),
-    const MemberModel(
-      id: '8',
-      fullName: 'Nguyễn Thị Ngọc',
-      gender: 'Nữ',
-      status: 'Còn sống',
-      dateOfBirth: '18/04/1990',
-      placeOfBirth: 'Hà Nội',
-      currentAddress: 'Hà Nội',
-      phoneNumber: '0944 333 444',
-      generation: 4,
-    ),
-    const MemberModel(
-      id: '9',
-      fullName: 'Nguyễn Văn An',
-      gender: 'Nam',
-      status: 'Còn sống',
-      dateOfBirth: '03/08/2002',
-      placeOfBirth: 'Hà Nội',
-      currentAddress: 'Hà Nội',
-      generation: 5,
-    ),
-    const MemberModel(
-      id: '10',
-      fullName: 'Nguyễn Thị Mai Anh',
-      gender: 'Nữ',
-      status: 'Còn sống',
-      dateOfBirth: '14/11/2005',
-      placeOfBirth: 'Hà Nam',
-      currentAddress: 'Hà Nam',
-      generation: 5,
-    ),
-  ];
 }

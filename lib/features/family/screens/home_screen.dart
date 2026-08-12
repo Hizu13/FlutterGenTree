@@ -4,6 +4,8 @@ import 'package:gentree/features/event/models/event_model.dart';
 import 'package:gentree/features/event/screens/event_screen.dart';
 import 'package:gentree/features/finance/screens/finance_screen.dart';
 import 'package:gentree/features/member/screens/member_list_screen.dart';
+import '../../tree/screens/tree_screen.dart';
+
 
 // Giả định bạn đã import các file này trong project:
 // import 'app_colors.dart';
@@ -418,7 +420,13 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.park_outlined,
               title: 'Phả đồ',
               subtitle: 'Xem cây gia phả',
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const TreeScreen(),
+                  ),
+                );
+              },
             ),
           ),
           _buildVerticalDivider(),
