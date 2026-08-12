@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../config/app_color.dart';
-import '../../event/models/event_model.dart';
-import '../../event/screens/event_screen.dart';
+import '../../member/screens/member_list_screen.dart';
+import '../../finance/screens/finance_screen.dart'; // 1. Import màn hình Thu chi
+import '../../event/screens/event_screen.dart'; // <-- ĐÃ THÊM: Import màn hình Sự kiện
 
 /// Màn hình Trang Chủ (Home Screen) của ứng dụng Quản Lý Gia Phả (Demogentree).
 /// Thiết kế chuẩn theo phác thảo Figma, sử dụng bảng màu hệ thống AppColors.
@@ -20,6 +21,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 2. Danh sách tất cả các màn hình ứng với 5 tab
+    final List<Widget> screens = [
+      _HomeContentView(onNavigateToTab: _onTabSelected), // Tab 0: Trang chủ
+      const MemberListScreen(), // Tab 1: Thành viên
+      const Center(child: Text('Màn hình Nhận diện AI')), // Tab 2: Nhận diện AI
+      const EventScreen(), // Tab 3: Sự kiện <-- ĐÃ SỬA: Hiển thị màn hình Sự kiện thật
+      const FinanceScreen(), // Tab 4: Thu chi (Icon cái ví)
+    ];
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(top: false, child: _buildPageContent()),
@@ -659,8 +669,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // 5. SECTION SỰ KIỆN SẮP TỚI
   // ===========================================================================
   Widget _buildUpcomingEventSection() {
-    final EventModel nextEvent = _events.first;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -739,22 +747,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.dateBadge,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Column(
+                child: const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      nextEvent.dayString,
-                      style: const TextStyle(
+                      '24',
+                      style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         height: 1.0,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
-                      nextEvent.monthLabel,
-                      style: const TextStyle(
+                      'THÁNG 05',
+                      style: TextStyle(
                         fontSize: 8.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.white70,
@@ -777,26 +785,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      nextEvent.title,
-                      style: const TextStyle(
+                    const Text(
+                      'Giỗ Tổ Họ Nguyễn',
+                      style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    const Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.access_time_rounded,
                           size: 13,
                           color: AppColors.textSecondary,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
-                          nextEvent.time,
-                          style: const TextStyle(
+                          '08:00 - 12:00',
+                          style: TextStyle(
                             fontSize: 11.5,
                             color: AppColors.textSecondary,
                           ),
@@ -804,6 +812,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 3),
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                        SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Từ đường họ Nguyễn, Hà Nội',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
