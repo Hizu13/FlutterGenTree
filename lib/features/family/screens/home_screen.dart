@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
-import '../../../config/app_color.dart';
-import '../../member/screens/member_list_screen.dart';
-import '../../finance/screens/finance_screen.dart'; // 1. Import màn hình Thu chi
-import '../../event/screens/event_screen.dart'; // <-- ĐÃ THÊM: Import màn hình Sự kiện
+import 'package:gentree/config/app_color.dart';
+import 'package:gentree/features/event/models/event_model.dart';
+import 'package:gentree/features/event/screens/event_screen.dart';
+import 'package:gentree/features/finance/screens/finance_screen.dart';
+import 'package:gentree/features/member/screens/member_list_screen.dart';
 
-/// Màn hình Trang Chủ (Home Screen) của ứng dụng Quản Lý Gia Phả (Demogentree).
-/// Thiết kế chuẩn theo phác thảo Figma, sử dụng bảng màu hệ thống AppColors.
+// Giả định bạn đã import các file này trong project:
+// import 'app_colors.dart';
+// import 'event_model.dart';
+// import 'event_screen.dart';
+// import 'member_list_screen.dart';
+// import 'finance_screen.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -19,22 +25,20 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isEventNotified = false;
   final List<EventModel> _events = EventModel.sampleEvents;
 
+  // Lấy sự kiện đầu tiên làm sự kiện sắp tới (tránh lỗi null)
+  EventModel? get _nextEvent => _events.isNotEmpty ? _events.first : null;
+
+  void _onTabSelected(int index) {
+    setState(() {
+      _currentBottomIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 2. Danh sách tất cả các màn hình ứng với 5 tab
-    final List<Widget> screens = [
-      _HomeContentView(onNavigateToTab: _onTabSelected), // Tab 0: Trang chủ
-      const MemberListScreen(), // Tab 1: Thành viên
-      const Center(child: Text('Màn hình Nhận diện AI')), // Tab 2: Nhận diện AI
-      const EventScreen(), // Tab 3: Sự kiện <-- ĐÃ SỬA: Hiển thị màn hình Sự kiện thật
-      const FinanceScreen(), // Tab 4: Thu chi (Icon cái ví)
-    ];
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(top: false, child: _buildPageContent()),
-
-      // 6. Thanh Bottom Navigation Bar phía dưới
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -42,17 +46,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPageContent() {
     switch (_currentBottomIndex) {
       case 1:
-        return _buildPlaceholderScreen('Thành viên');
+        return const MemberListScreen();
       case 2:
         return _buildPlaceholderScreen('Nhận diện AI');
       case 3:
         return EventScreen(events: _events);
       case 4:
-        return _buildPlaceholderScreen('Thu chi');
+        return const FinanceScreen();
       default:
         return Stack(
           children: [
-            // Nội dung chính cuộn dọc
+            // Nội dung chính cuộn dọc (Tab Trang chủ)
             SingleChildScrollView(
               child: Column(
                 children: [
@@ -66,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   const SizedBox(height: 20),
 
-                  // 3. Grid Lối tắt Thao tác nhanh (Phả đồ, Thành viên, Sự kiện, Thu chi)
+                  // 3. Grid Lối tắt Thao tác nhanh
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildQuickActionsGrid(),
@@ -172,7 +176,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          // Avatar đại diện người dùng
           Container(
             width: 48,
             height: 48,
@@ -189,7 +192,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(width: 14),
 
-          // Lời chào & Tên người dùng
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // Khung chứa nút Thông báo & Nút Popup Menu (...)
           Container(
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -222,7 +223,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Nút chuông thông báo
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
@@ -237,7 +237,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {},
                 ),
 
-                // Nút ba chấm (...) mở Popup Role
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
@@ -264,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ===========================================================================
-  // POPUP MENU CHO ROLE (Quản trị / Hồ sơ / Đăng xuất)
+  // POPUP MENU CHO ROLE
   // ===========================================================================
   Widget _buildRolePopupMenu() {
     return Positioned(
@@ -292,27 +291,21 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.shield_outlined,
               text: 'Quản trị',
               textColor: AppColors.textPrimary,
-              onTap: () {
-                setState(() => _showRoleMenu = false);
-              },
+              onTap: () => setState(() => _showRoleMenu = false),
             ),
             const Divider(height: 1, color: AppColors.divider),
             _buildMenuItem(
               icon: Icons.person_outline_rounded,
               text: 'Hồ sơ cá nhân',
               textColor: AppColors.textPrimary,
-              onTap: () {
-                setState(() => _showRoleMenu = false);
-              },
+              onTap: () => setState(() => _showRoleMenu = false),
             ),
             const Divider(height: 1, color: AppColors.divider),
             _buildMenuItem(
               icon: Icons.logout_rounded,
               text: 'Đăng xuất',
               textColor: AppColors.badgeRed,
-              onTap: () {
-                setState(() => _showRoleMenu = false);
-              },
+              onTap: () => setState(() => _showRoleMenu = false),
             ),
           ],
         ),
@@ -357,7 +350,6 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Họa tiết hoa văn mây bên trái
             const Text(
               '⤹ ☁ ',
               style: TextStyle(
@@ -378,7 +370,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(width: 4),
-            // Họa tiết hoa văn mây bên phải
             const Text(
               ' ☁ ⤸',
               style: TextStyle(
@@ -403,7 +394,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ===========================================================================
-  // 3. GRID THAO TÁC NHANH (Phả đồ, Thành viên, Sự kiện, Thu chi)
+  // 3. GRID THAO TÁC NHANH
   // ===========================================================================
   Widget _buildQuickActionsGrid() {
     return Container(
@@ -436,7 +427,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.groups_outlined,
               title: 'Thành viên',
               subtitle: 'Xem danh sách thành viên',
-              onTap: () {},
+              onTap: () => _onTabSelected(1),
             ),
           ),
           _buildVerticalDivider(),
@@ -445,11 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.calendar_month_outlined,
               title: 'Sự kiện',
               subtitle: 'Lịch và sự kiện',
-              onTap: () {
-                setState(() {
-                  _currentBottomIndex = 3;
-                });
-              },
+              onTap: () => _onTabSelected(3),
             ),
           ),
           _buildVerticalDivider(),
@@ -458,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.account_balance_wallet_outlined,
               title: 'Thu chi',
               subtitle: 'Quản lý tài chính',
-              onTap: () {},
+              onTap: () => _onTabSelected(4),
             ),
           ),
         ],
@@ -483,7 +470,6 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         child: Column(
           children: [
-            // Icon tròn màu nâu hạt dẻ
             Container(
               width: 44,
               height: 44,
@@ -537,7 +523,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Nội dung văn bản bên trái
           Expanded(
             flex: 6,
             child: Column(
@@ -561,9 +546,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                // Nút "Mở Camera AI"
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () => _onTabSelected(2),
                   icon: const Icon(
                     Icons.camera_alt_outlined,
                     size: 16,
@@ -594,15 +578,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 12),
-
-          // Hình minh họa Điện thoại quét khuôn mặt AI bên phải
           Expanded(
             flex: 4,
             child: Center(
               child: Stack(
                 alignment: Alignment.bottomRight,
                 children: [
-                  // Mockup khung điện thoại
                   Container(
                     width: 105,
                     height: 125,
@@ -620,13 +601,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Lưới quét mặt AI
                           const Icon(
                             Icons.face_retouching_natural_rounded,
                             color: AppColors.primaryGold,
                             size: 46,
                           ),
-                          // Khung ngắm quét camera 4 góc
                           Positioned.fill(
                             child: Padding(
                               padding: const EdgeInsets.all(8),
@@ -641,8 +620,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-
-                  // Huy hiệu vàng xác thực thành công
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
@@ -669,10 +646,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // 5. SECTION SỰ KIỆN SẮP TỚI
   // ===========================================================================
   Widget _buildUpcomingEventSection() {
+    final event = _nextEvent;
+    if (event == null) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Tiêu đề Section & Nút "Xem tất cả >"
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -695,11 +674,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             InkWell(
-              onTap: () {
-                setState(() {
-                  _currentBottomIndex = 3;
-                });
-              },
+              onTap: () => _onTabSelected(3),
               child: const Row(
                 children: [
                   Text(
@@ -721,8 +696,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 12),
-
-        // Card chi tiết sự kiện
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -739,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Row(
             children: [
-              // Khung hiển thị ngày tháng màu nâu đậm
+              // Khung ngày tháng -> Khớp getter trong EventModel
               Container(
                 width: 64,
                 height: 64,
@@ -747,29 +720,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.dateBadge,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      '24',
-                      style: TextStyle(
+                      event.dayString, // Đã đổi từ dayLabel -> dayString
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         height: 1.0,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      'THÁNG 05',
-                      style: TextStyle(
+                      event.monthLabel, // Lấy "THÁNG XX"
+                      style: const TextStyle(
                         fontSize: 8.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.white70,
                       ),
                     ),
                     Text(
-                      nextEvent.yearLabel,
+                      event.yearLabel,
                       style: const TextStyle(
                         fontSize: 8.5,
                         color: Colors.white70,
@@ -785,26 +758,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Giỗ Tổ Họ Nguyễn',
-                      style: TextStyle(
+                    Text(
+                      event.title,
+                      style: const TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.access_time_rounded,
                           size: 13,
                           color: AppColors.textSecondary,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
-                          '08:00 - 12:00',
-                          style: TextStyle(
+                          event.time, // Đã đổi từ timeRange -> time
+                          style: const TextStyle(
                             fontSize: 11.5,
                             color: AppColors.textSecondary,
                           ),
@@ -812,18 +785,21 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(
-                          Icons.location_on_outlined,
+                        const Icon(
+                          Icons
+                              .notes_rounded, // Đổi icon địa điểm -> icon ghi chú
                           size: 13,
                           color: AppColors.textSecondary,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            'Từ đường họ Nguyễn, Hà Nội',
-                            style: TextStyle(
+                            event.note.isNotEmpty
+                                ? event.note
+                                : event.dateRange, // Dùng note hoặc dateRange
+                            style: const TextStyle(
                               fontSize: 11.5,
                               color: AppColors.textSecondary,
                             ),
@@ -836,7 +812,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // Nút chuông bật/tắt nhắc nhở sự kiện
+              // Nút chuông thông báo
               InkWell(
                 onTap: () {
                   setState(() {
@@ -892,17 +868,11 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedFontSize: 11,
         unselectedFontSize: 11,
         elevation: 0,
-        onTap: (index) {
-          setState(() {
-            _currentBottomIndex = index;
-          });
-        },
+        onTap: _onTabSelected,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_rounded),
-            activeIcon: Column(
-              children: [Icon(Icons.home_rounded), SizedBox(height: 2)],
-            ),
+            activeIcon: Icon(Icons.home_rounded),
             label: 'Trang chủ',
           ),
           BottomNavigationBarItem(
@@ -931,7 +901,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// CustomPainter vẽ 4 góc viền của ô ngắm máy ảnh AI
 class CameraCornerPainter extends CustomPainter {
   final Color color;
 
