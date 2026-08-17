@@ -6,6 +6,8 @@ from sqlalchemy import text
 from fastapi.staticfiles import StaticFiles # <--- Import
 from routers import members
 from routers import upload # <--- Import
+from routers import events # <--- Import Events
+from routers import finance # <--- Import Finance
 # Optional chat router: some deployments may not include chat.py
 
 app = FastAPI(title="Family Management Backend")
@@ -21,6 +23,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(members.router)
 app.include_router(upload.router) # <--- Include
+app.include_router(events.router) # <--- Include Events
+app.include_router(finance.router) # <--- Include Finance
 
 
 # ====== 1️⃣ TẠO BẢNG MYSQL (NẾU CÓ) ======
