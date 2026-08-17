@@ -7,8 +7,7 @@ import '../widgets/member_summary_card.dart';
 import 'add_member_screen.dart';
 import 'member_profile_screen.dart';
 import '../repositories/member_repository.dart';
-
-
+import '../../../config/api_config.dart';
 
 
 /// Màn hình Danh Sách Thành Viên.
@@ -29,8 +28,40 @@ class _MemberListScreenState extends State<MemberListScreen> {
   String? _selectedGender;
   String? _selectedAddress;
 
- // ── Dữ liệu toàn cục từ Repository ──────────────────────────────────────────
-  final List<MemberModel> _allMembers = MemberRepository.members;
+// ── Dữ liệu từ Backend API ──────────────────────────────────────────────
+  List<MemberModel> _allMembers = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final data = await MemberRepository.fetchAll(forceRefresh: true);
+      if (mounted) {
+        setState(() {
+          _allMembers = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
+      }
+    }
+  }
+
   List<MemberModel> get _filteredMembers {
     return _allMembers.where((m) {
       // Lọc theo tìm kiếm
@@ -94,53 +125,85 @@ class _MemberListScreenState extends State<MemberListScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: Column(
-          children: [
-            // ── AppBar tuỳ chỉnh ─────────────────────────────────────────────
-            _buildAppBar(context),
+         body: SafeArea(
+          top: false,
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  // ── AppBar tuỳ chỉnh ─────────────────────────────────────────────
+                  _buildAppBar(context),
 
-            // ── Ô tìm kiếm ──────────────────────────────────────────────────
-            _buildSearchBar(),
+                  // ── Ô tìm kiếm ──────────────────────────────────────────────────
+                  _buildSearchBar(),
 
-            // ── Thanh bộ lọc ─────────────────────────────────────────────────
-            MemberFilterBar(
-              totalCount: _allMembers.length,
-              selectedGeneration: _selectedGeneration,
-              selectedGender: _selectedGender,
-              selectedAddress: _selectedAddress,
-              generationOptions: _generationOptions,
-              addressOptions: _addressOptions,
-              onGenerationChanged: (val) => setState(() => _selectedGeneration = val),
-              onGenderChanged: (val) => setState(() => _selectedGender = val),
-              onAddressChanged: (val) => setState(() => _selectedAddress = val),
-              onSortTap: _showSortBottomSheet,
-            ),
+                  // ── Thanh bộ lọc ─────────────────────────────────────────────────
+                  MemberFilterBar(
+                    totalCount: _allMembers.length,
+                    selectedGeneration: _selectedGeneration,
+                    selectedGender: _selectedGender,
+                    selectedAddress: _selectedAddress,
+                    generationOptions: _generationOptions,
+                    addressOptions: _addressOptions,
+                    onGenerationChanged: (val) =>
+                        setState(() => _selectedGeneration = val),
+                    onGenderChanged: (val) =>
+                        setState(() => _selectedGender = val),
+                    onAddressChanged: (val) =>
+                        setState(() => _selectedAddress = val),
+                    onSortTap: _showSortBottomSheet,
+                  ),
 
-            // ── Danh sách thành viên ─────────────────────────────────────────
-            Expanded(
-              child: filtered.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(top: 6, bottom: 8),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final member = filtered[index];
-                        return MemberCard(
-                          member: member,
-                          onTap: () => _onMemberTap(member),
-                          onMoreTap: () => _showMemberOptions(member),
-                        );
-                      },
-                    ),
-            ),
+                  // ── Danh sách thành viên ─────────────────────────────────────────
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.primaryMedium,
+                            ),
+                          )
+                        : _errorMessage != null
+                        ? _buildErrorState()
+                        : filtered.isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: _loadMembers,
+                            color: AppColors.primaryMedium,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.only(top: 6, bottom: 8),
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final member = filtered[index];
+                                return MemberCard(
+                                  member: member,
+                                  onTap: () => _onMemberTap(member),
+                                  onMoreTap: () => _showMemberOptions(member),
+                                );
+                              },
+                            ),
+                          ),
+                  ),
 
-            // ── Thống kê Footer ───────────────────────────────────────────────
-            MemberSummaryCard(
-              totalCount: _allMembers.length,
-              maleCount: _maleCount,
-              femaleCount: _femaleCount,
-            ),
-          ],
+                  // place a spacer at bottom so list not hidden by floating card
+                  const SizedBox(height: 120),
+                ],
+              ),
+
+              // Floating summary card at bottom-left (small pill)
+              Positioned(
+                left: 16,
+                bottom: 16,
+                child: SizedBox(
+                  width: 300,
+                  child: MemberSummaryCard(
+                    totalCount: _allMembers.length,
+                    maleCount: _maleCount,
+                    femaleCount: _femaleCount,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
 
         // ── FAB Thêm mới ──────────────────────────────────────────────────────
@@ -178,7 +241,7 @@ class _MemberListScreenState extends State<MemberListScreen> {
         children: [
           // Nút Back
           GestureDetector(
-            onTap: () => Navigator.of(context).maybePop(),
+            onTap: () => Navigator.of(context).popUntil((route) => route.isFirst),
             child: Container(
               width: 36,
               height: 36,
@@ -274,6 +337,7 @@ class _MemberListScreenState extends State<MemberListScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
     );
@@ -371,9 +435,69 @@ class _MemberListScreenState extends State<MemberListScreen> {
           const SizedBox(height: 6),
           const Text(
             'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm',
+            style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // ERROR STATE
+  // ===========================================================================
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceWarm,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Icon(
+              Icons.cloud_off_rounded,
+              size: 40,
+              color: AppColors.error,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Không thể kết nối Backend',
             style: TextStyle(
-              fontSize: 12.5,
-              color: AppColors.textSecondary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              _errorMessage ?? '',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _loadMembers,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Thử lại'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryMedium,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],
@@ -413,23 +537,47 @@ class _MemberListScreenState extends State<MemberListScreen> {
       MaterialPageRoute(
         builder: (_) => AddMemberScreen(
           existingMembers: _allMembers,
-          onSaved: (newMember) {
-            setState(() {
-              _allMembers.add(newMember);
-            });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-                content: Text('Đã thêm thành viên: ${newMember.fullName}'),
-                backgroundColor: AppColors.primaryMedium,
-        behavior: SnackBarBehavior.floating,
-   shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+          onSaved: (newMember) async {
+            try {
+              final created = await MemberRepository.addMember(newMember);
+              if (mounted) {
+                setState(() {
+                  final idx = _allMembers.indexWhere((m) => m.id == created.id);
+                  if (idx == -1) {
+                    _allMembers.add(created);
+                  } else {
+                    _allMembers[idx] = created;
+                  }
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Đã thêm thành viên: ${created.fullName}'),
+                    backgroundColor: AppColors.primaryMedium,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
+            }
           },
-        ),      ),
+        ),
+      ),
     );
   }
 
@@ -450,36 +598,89 @@ builder: (_) => _MemberOptionsSheet(
               builder: (_) => AddMemberScreen(
                 existingMembers: _allMembers,
                 initialMember: member,
-                onSaved: (updated) {
-                  setState(() {
-                    final idx = _allMembers.indexWhere((m) => m.id == updated.id);
-                    if (idx != -1) {
-                      _allMembers[idx] = updated;
+                onSaved: (updated) async {
+                  try {
+                    final result = await MemberRepository.updateMember(
+                      member.id!,
+                      updated,
+                    );
+                    if (mounted) {
+                      setState(() {
+                        final idx = _allMembers.indexWhere(
+                          (m) => m.id == member.id,
+                        );
+                        if (idx != -1) {
+                          _allMembers[idx] = result;
+                        }
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Đã cập nhật: ${result.fullName}'),
+                          backgroundColor: AppColors.primaryMedium,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
                     }
-                  });
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Lỗi cập nhật: $e'),
+                          backgroundColor: AppColors.error,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      );
+                    }
+                  }
                 },
               ),
             ),
           );
         },
-        onDelete: () {
+        onDelete: () async {
           Navigator.pop(context);
-          setState(() {
-            _allMembers.removeWhere((m) => m.id == member.id);
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Đã xóa thành viên: ${member.fullName}'),
-              backgroundColor: AppColors.error,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          try {
+            await MemberRepository.deleteMember(member.id!);
+            if (mounted) {
+              setState(() {
+                _allMembers.removeWhere((m) => m.id == member.id);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Đã xóa thành viên: ${member.fullName}'),
+                  backgroundColor: AppColors.error,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Lỗi xóa: $e'),
+                  backgroundColor: AppColors.error,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              );
+            }
+          }
         },
-      ),    );
+      ),
+    );
   }
 
   void _showSortBottomSheet() {
@@ -497,6 +698,45 @@ builder: (_) => _MemberOptionsSheet(
 
   void _showFilterBottomSheet() {
     // TODO: Advanced filter bottom sheet
+  }
+  void _showApiSettings(BuildContext context) async {
+    final controller = TextEditingController(text: ApiConfig.baseUrl);
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('API Base URL'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'http://<IP>:8000/api/flutter/members',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      await ApiConfig.setRuntimeBaseUrl(result);
+      // Clear repository cache and reload members using the new base URL
+      try {
+        MemberRepository.invalidateCache();
+        await _loadMembers();
+      } catch (_) {}
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('API_BASE_URL set to $result')));
+        setState(() {});
+      }
+    }
   }
 }
 

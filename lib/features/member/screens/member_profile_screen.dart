@@ -290,9 +290,9 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
             ),
           ),
           child: ClipOval(
-            child: _member.avatarUrl != null && _member.avatarUrl!.isNotEmpty
+            child: _member.resolvedAvatarUrl != null && _member.resolvedAvatarUrl!.isNotEmpty
                 ? Image.network(
-                    _member.avatarUrl!,
+                    _member.resolvedAvatarUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stack) => _buildDefaultAvatar(isMale),
                   )

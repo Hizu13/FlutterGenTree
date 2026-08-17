@@ -1,147 +1,62 @@
 import '../models/member_model.dart';
+import '../services/member_api_service.dart';
 
+/// Repository quản lý dữ liệu thành viên.
+/// Kết nối tới Backend FastAPI qua MemberApiService.
+/// Giữ cache cục bộ để hiển thị nhanh, đồng bộ với DB khi có thay đổi.
 class MemberRepository {
-  static final List<MemberModel> members = _generateSampleData();
+  /// Cache danh sách thành viên trong bộ nhớ
+  static List<MemberModel> members = [];
 
-  static List<MemberModel> _generateSampleData() {
-    return [
-      const MemberModel(
-        id: '1',
-        fullName: 'Nguyễn Văn Thành',
-        gender: 'Nam',
-        status: 'Đã mất',
-        dateOfBirth: '01/01/1900',
-        placeOfBirth: 'Hà Nội',
-        currentAddress: 'Hà Nội',
-        phoneNumber: '0123 456 789',
-        generation: 2,
-        occupation: 'Quan lại',
-      ),
-      const MemberModel(
-        id: '2',
-        fullName: 'Nguyễn Thị Bình',
-        gender: 'Nữ',
-        status: 'Đã mất',
-        dateOfBirth: '01/01/1905',
-        placeOfBirth: 'Hà Nội',
-        currentAddress: 'Hà Nội',
-        phoneNumber: '0123 456 789',
-        generation: 2,
-      ),
-      const MemberModel(
-        id: '3',
-        fullName: 'Nguyễn Văn Hùng',
-        gender: 'Nam',
-        status: 'Còn sống',
-        dateOfBirth: '15/06/1950',
-        placeOfBirth: 'Hà Nam',
-        currentAddress: 'Hà Nam',
-        phoneNumber: '0987 654 321',
-        generation: 3,
-        occupation: 'Nông nghiệp',
-        fatherId: '1',
-        fatherName: 'Nguyễn Văn Thành',
-        motherId: '2',
-        motherName: 'Nguyễn Thị Bình',
-      ),
-      const MemberModel(
-        id: '4',
-        fullName: 'Nguyễn Thị Lan',
-        gender: 'Nữ',
-        status: 'Còn sống',
-        dateOfBirth: '20/03/1955',
-        placeOfBirth: 'Hưng Yên',
-        currentAddress: 'Hưng Yên',
-        phoneNumber: '0912 345 678',
-        generation: 3,
-      ),
-      const MemberModel(
-        id: '5',
-        fullName: 'Nguyễn Văn Minh',
-        gender: 'Nam',
-        status: 'Còn sống',
-        dateOfBirth: '10/09/1978',
-        placeOfBirth: 'Hà Nội',
-        currentAddress: 'Hà Nội',
-        phoneNumber: '0901 234 567',
-        generation: 4,
-        occupation: 'Kỹ sư',
-        fatherId: '3',
-        fatherName: 'Nguyễn Văn Hùng',
-        motherId: '4',
-        motherName: 'Nguyễn Thị Lan',
-      ),
-      const MemberModel(
-        id: '6',
-        fullName: 'Nguyễn Thị Thu Hà',
-        gender: 'Nữ',
-        status: 'Còn sống',
-        dateOfBirth: '05/12/1982',
-        placeOfBirth: 'Hà Nội',
-        currentAddress: 'Hà Nội',
-        phoneNumber: '0977 111 222',
-        generation: 4,
-        occupation: 'Giáo viên',
-      ),
-      const MemberModel(
-        id: '7',
-        fullName: 'Nguyễn Văn Quang',
-        gender: 'Nam',
-        status: 'Còn sống',
-        dateOfBirth: '22/07/1985',
-        placeOfBirth: 'Hà Nam',
-        currentAddress: 'Hà Nam',
-        phoneNumber: '0933 222 333',
-        generation: 4,
-        occupation: 'Bác sĩ',
-        fatherId: '3',
-        fatherName: 'Nguyễn Văn Hùng',
-        motherId: '4',
-        motherName: 'Nguyễn Thị Lan',
-      ),
-      const MemberModel(
-        id: '8',
-        fullName: 'Nguyễn Thị Ngọc',
-        gender: 'Nữ',
-        status: 'Còn sống',
-        dateOfBirth: '18/04/1990',
-        placeOfBirth: 'Hà Nội',
-        currentAddress: 'Hà Nội',
-        phoneNumber: '0944 333 444',
-        generation: 4,
-        fatherId: '3',
-        fatherName: 'Nguyễn Văn Hùng',
-        motherId: '4',
-        motherName: 'Nguyễn Thị Lan',
-      ),
-      const MemberModel(
-        id: '9',
-        fullName: 'Nguyễn Văn An',
-        gender: 'Nam',
-        status: 'Còn sống',
-        dateOfBirth: '03/08/2002',
-        placeOfBirth: 'Hà Nội',
-        currentAddress: 'Hà Nội',
-        generation: 5,
-        fatherId: '5',
-        fatherName: 'Nguyễn Văn Minh',
-        motherId: '6',
-        motherName: 'Nguyễn Thị Thu Hà',
-      ),
-      const MemberModel(
-        id: '10',
-        fullName: 'Nguyễn Thị Mai Anh',
-        gender: 'Nữ',
-        status: 'Còn sống',
-        dateOfBirth: '14/11/2005',
-        placeOfBirth: 'Hà Nam',
-        currentAddress: 'Hà Nam',
-        generation: 5,
-        fatherId: '5',
-        fatherName: 'Nguyễn Văn Minh',
-        motherId: '6',
-        motherName: 'Nguyễn Thị Thu Hà',
-      ),
-    ];
+  /// Trạng thái đã tải dữ liệu từ API chưa
+  static bool _isLoaded = false;
+
+  /// Lấy toàn bộ thành viên từ Backend API (có cache)
+  static Future<List<MemberModel>> fetchAll({bool forceRefresh = false}) async {
+    if (_isLoaded && !forceRefresh) {
+      return members;
+    }
+    try {
+      members = await MemberApiService.fetchAll();
+      _isLoaded = true;
+      return members;
+    } catch (e) {
+      // Nếu Backend không khả dụng, trả về cache hiện tại
+      if (members.isNotEmpty) return members;
+      rethrow;
+    }
+  }
+
+  /// Thêm thành viên mới qua API → cập nhật cache
+  static Future<MemberModel> addMember(MemberModel member) async {
+    final created = await MemberApiService.create(member);
+    final idx = members.indexWhere((m) => m.id == created.id);
+    if (idx == -1) {
+      members.add(created);
+    } else {
+      members[idx] = created;
+    }
+    return created;
+  }
+
+  /// Cập nhật thành viên qua API → cập nhật cache
+  static Future<MemberModel> updateMember(String id, MemberModel member) async {
+    final updated = await MemberApiService.update(id, member);
+    final idx = members.indexWhere((m) => m.id == id);
+    if (idx != -1) {
+      members[idx] = updated;
+    }
+    return updated;
+  }
+
+  /// Xóa thành viên qua API → cập nhật cache
+  static Future<void> deleteMember(String id) async {
+    await MemberApiService.delete(id);
+    members.removeWhere((m) => m.id == id);
+  }
+
+  /// Xóa cache, buộc tải lại từ API lần tiếp theo
+  static void invalidateCache() {
+    _isLoaded = false;
   }
 }

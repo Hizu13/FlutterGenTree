@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../config/app_color.dart';
 import '../models/member_model.dart';
+import 'dart:io';	
+import 'package:image_picker/image_picker.dart';
+import '../services/member_api_service.dart';
 
 /// Màn hình Thêm Thành Viên Mới.
 /// Thiết kế theo Figma: AppBar nâu đậm, form 4 section: Thông tin cá nhân,
@@ -49,7 +52,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   String _status = 'Còn sống';
   MemberModel? _selectedFather;
   MemberModel? _selectedMother;
-  
+  XFile? _avatarFile;	  
+  String? _avatarUrl;
   @override
   void initState() {
     super.initState();
@@ -68,6 +72,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       _identityCardCtrl.text = init.identityCard ?? '';
       _gender = init.gender;
       _status = init.status;
+      _avatarUrl = init.avatarUrl;
       if (init.fatherId != null) {
         try {
           _selectedFather = widget.existingMembers.firstWhere((m) => m.id == init.fatherId);
@@ -106,7 +111,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       widget.existingMembers.where((m) => m.gender == 'Nữ').toList();
 
   // ── Lưu thành viên ─────────────────────────────────────────────────────
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
     final id = widget.initialMember?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
@@ -127,13 +132,74 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       dateOfDeath: _dodCtrl.text.trim().isEmpty ? null : _dodCtrl.text.trim(),
       placeOfDeath: _placeOfDeathCtrl.text.trim().isEmpty ? null : _placeOfDeathCtrl.text.trim(),
       occupation: _occupationCtrl.text.trim().isEmpty ? null : _occupationCtrl.text.trim(),
+      identityCard: _identityCardCtrl.text.trim().isEmpty ? null : _identityCardCtrl.text.trim(),
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       generation: widget.initialMember?.generation,
       avatarUrl: widget.initialMember?.avatarUrl,
     );
 
-    widget.onSaved(member);
-    Navigator.of(context).pop();
+    String? finalAvatarUrl = _avatarUrl ?? widget.initialMember?.avatarUrl;
+
+        if (_avatarFile != null) {
+          // show simple loading
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const Center(child: CircularProgressIndicator()),
+          );
+          try {
+            final uploaded = await MemberApiService.uploadImage(
+              File(_avatarFile!.path),
+            );
+            finalAvatarUrl = uploaded;
+          } catch (e) {
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Không thể upload ảnh: $e')));
+            return;
+          }
+          Navigator.of(context).pop();
+        }
+
+        final memberWithAvatar = member.copyWith(avatarUrl: finalAvatarUrl);
+        widget.onSaved(memberWithAvatar);    
+        Navigator.of(context).pop();
+  }
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    try {
+      final XFile? picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      final file = File(picked.path);
+      final bytes = await file.length();
+      const maxBytes = 5 * 1024 * 1024; // 5MB
+      if (bytes > maxBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ảnh quá lớn (>5MB). Vui lòng chọn ảnh khác.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _avatarFile = picked;
+        _avatarUrl = null; // clear remote url when new file chosen
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi chọn ảnh: $e')));
+      }
+    }
   }
 
   // ── Huỷ ─────────────────────────────────────────────────────────────────
@@ -374,92 +440,92 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   // ===========================================================================
   Widget _buildPersonalInfoSection() {
     return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Ảnh đại diện
-            _buildAvatarPicker(),
-            const SizedBox(width: 16),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Ảnh đại diện
+        _buildAvatarPicker(),
+        const SizedBox(width: 16),
 
-            // Cột thông tin bên phải
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        // Cột thông tin bên phải
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildLabel('Họ và tên'),
+              _buildTextFormField(
+                controller: _nameCtrl,
+                hint: 'Nhập họ và tên',
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Vui lòng nhập họ và tên'
+                    : null,
+              ),
+
+              const SizedBox(height: 10),
+
+              // Giới tính + Trạng thái
+              Row(
                 children: [
-                  _buildLabel('Họ và tên'),
-                  _buildTextFormField(
-                    controller: _nameCtrl,
-                    hint: 'Nhập họ và tên',
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Vui lòng nhập họ và tên'
-                        : null,
+                  // Giới tính
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLabel('Giới tính'),
+                        _buildGenderSelector(),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 10),
+                  // Trạng thái
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLabel('Trạng thái'),
+                        _buildStatusDropdown(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
 
-                  const SizedBox(height: 10),
+              const SizedBox(height: 10),
 
-                  // Giới tính + Trạng thái
-                  Row(
-                    children: [
-                      // Giới tính
-                      Expanded(
-                        flex: 5,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildLabel('Giới tính'),
-                            _buildGenderSelector(),
-                          ],
+              // Ngày sinh + Nơi sinh
+              Row(
+                children: [
+                  // Ngày sinh
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLabel('Ngày sinh'),
+                        _buildDateField(
+                          controller: _dobCtrl,
+                          hint: 'dd/mm/yyyy',
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Trạng thái
-                      Expanded(
-                        flex: 5,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildLabel('Trạng thái'),
-                            _buildStatusDropdown(),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 10),
-
-        // Ngày sinh + Nơi sinh
-        Row(
-          children: [
-            // Ngày sinh
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLabel('Ngày sinh'),
-                  _buildDateField(
-                    controller: _dobCtrl,
-                    hint: 'dd/mm/yyyy',
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Nơi sinh
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLabel('Nơi sinh'),
+                        _buildTextFormField(
+                          controller: _pobCtrl,
+                          hint: 'Nhập nơi sinh',
+                          prefixIcon: Icons.location_on_outlined,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 10),
-            // Nơi sinh
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLabel('Nơi sinh'),
-                  _buildTextFormField(
-                    controller: _pobCtrl,
-                    hint: 'Nhập nơi sinh',
-                    prefixIcon: Icons.location_on_outlined,
-                  ),
-                ],
-              ),
-            ),
-          ],
-             ),
 
               const SizedBox(height: 10),
 
@@ -478,34 +544,60 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 
   // ── Avatar picker ──────────────────────────────────────────────────────
   Widget _buildAvatarPicker() {
-    return Column(
-      children: [
-        Container(
+    Widget avatarChild;
+    if (_avatarFile != null) {
+      avatarChild = ClipOval(
+        child: Image.file(
+          File(_avatarFile!.path),
           width: 80,
           height: 80,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceWarm,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border, width: 1.5),
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      avatarChild = ClipOval(
+        child: Image.network(
+          _avatarUrl!,
+          width: 80,
+          height: 80,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else {
+      avatarChild = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(
+            Icons.camera_alt_outlined,
+            size: 26,
+            color: AppColors.primaryMedium,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(
-                Icons.camera_alt_outlined,
-                size: 26,
-                color: AppColors.primaryMedium,
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Thêm ảnh',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppColors.primaryMedium,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+          SizedBox(height: 4),
+          Text(
+            'Thêm ảnh',
+            style: TextStyle(
+              fontSize: 10,
+              color: AppColors.primaryMedium,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _pickImage,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceWarm,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border, width: 1.5),
+            ),
+            child: avatarChild,
           ),
         ),
         const SizedBox(height: 6),

@@ -1,0 +1,118 @@
+from pydantic import BaseModel
+from typing import Optional
+from datetime import date
+
+
+class FamilyBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    origin_location: Optional[str] = None
+
+
+class FamilyCreate(FamilyBase):
+    pass
+
+
+class FamilyRead(FamilyBase):
+    id: int
+    join_code: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PersonBase(BaseModel):
+    cccd: Optional[str] = None
+    first_name: str
+    last_name: Optional[str] = None
+    gender: str
+    date_of_birth: Optional[date] = None
+    date_of_death: Optional[date] = None
+    place_of_birth: Optional[str] = None
+    phone_number: Optional[str] = None
+    permanent_address: Optional[str] = None
+    avatar_url: Optional[str] = None
+    biography: Optional[str] = None
+    occupation: Optional[str] = None
+    generation: Optional[int] = None
+    place_of_death: Optional[str] = None
+    father_id: Optional[int] = None
+    mother_id: Optional[int] = None
+    family_id: Optional[int] = None
+
+
+class PersonCreate(PersonBase):
+    pass
+
+
+class PersonUpdate(PersonBase):
+    pass
+
+
+class PersonRead(PersonBase):
+    id: int
+    role: Optional[str] = "member"
+
+    class Config:
+        from_attributes = True
+
+
+class RelationshipBase(BaseModel):
+    person1_id: int
+    person2_id: int
+    type: str
+
+
+class RelationshipCreate(RelationshipBase):
+    pass
+
+
+class RelationshipRead(RelationshipBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class MemberFlutterRead(BaseModel):
+    id: str
+    fullName: str
+    gender: str
+    status: str
+    dateOfBirth: Optional[str] = None
+    placeOfBirth: Optional[str] = None
+    fatherId: Optional[str] = None
+    fatherName: Optional[str] = None
+    motherId: Optional[str] = None
+    motherName: Optional[str] = None
+    phoneNumber: Optional[str] = None
+    email: Optional[str] = None
+    currentAddress: Optional[str] = None
+    dateOfDeath: Optional[str] = None
+    placeOfDeath: Optional[str] = None
+    occupation: Optional[str] = None
+    notes: Optional[str] = None
+    avatarUrl: Optional[str] = None
+    generation: Optional[int] = None
+    identityCard: Optional[str] = None
+
+
+class MemberFlutterCreate(BaseModel):
+    fullName: str
+    gender: str
+    status: Optional[str] = "Còn sống"
+    dateOfBirth: Optional[str] = None
+    placeOfBirth: Optional[str] = None
+    fatherId: Optional[str] = None
+    motherId: Optional[str] = None
+    phoneNumber: Optional[str] = None
+    email: Optional[str] = None
+    currentAddress: Optional[str] = None
+    dateOfDeath: Optional[str] = None
+    placeOfDeath: Optional[str] = None
+    occupation: Optional[str] = None
+    notes: Optional[str] = None
+    avatarUrl: Optional[str] = None
+    generation: Optional[int] = None
+    identityCard: Optional[str] = None
+    familyId: Optional[int] = None
