@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../config/api_config.dart';
 
 /// Data Model đại diện cho thông tin một Thành Viên trong Gia Phả.
 @immutable
@@ -97,6 +98,16 @@ class MemberModel {
     );
   }
 
+  String? get resolvedAvatarUrl {
+    if (avatarUrl == null || avatarUrl!.isEmpty) return null;
+    if (avatarUrl!.startsWith('http://') || avatarUrl!.startsWith('https://')) {
+      return avatarUrl!;
+    }
+    final base = Uri.parse(ApiConfig.baseUrl).origin;
+    return '$base$avatarUrl';
+  }
+
+  
   Map<String, dynamic> toJson() {
     return {
       'id': id,

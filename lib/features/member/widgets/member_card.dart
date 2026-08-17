@@ -24,32 +24,31 @@ class MemberCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.border),
           boxShadow: const [
             BoxShadow(
               color: AppColors.shadow,
-              blurRadius: 4,
-              offset: Offset(0, 2),
+              blurRadius: 6,
+              offset: Offset(0, 3),
             ),
           ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ── Avatar + Badge Đời ──────────────────────────────────────
+            // ── Avatar ──────────────────────────────────────────────────
             _buildAvatarWithBadge(isMale),
 
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
 
             // ── Thông tin thành viên ────────────────────────────────────
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Tên + nút ba chấm
                   Row(
@@ -59,16 +58,15 @@ class MemberCard extends StatelessWidget {
                         child: Text(
                           member.fullName,
                           style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary,
-                            height: 1.2,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 8),
                       GestureDetector(
                         onTap: onMoreTap,
                         child: const Icon(
@@ -92,15 +90,15 @@ class MemberCard extends StatelessWidget {
                             children: [
                               const Icon(
                                 Icons.location_on_outlined,
-                                size: 13,
+                                size: 14,
                                 color: AppColors.textSecondary,
                               ),
-                              const SizedBox(width: 3),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   member.currentAddress ?? member.placeOfBirth ?? '',
                                   style: const TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 13,
                                     color: AppColors.textSecondary,
                                   ),
                                   maxLines: 1,
@@ -118,14 +116,14 @@ class MemberCard extends StatelessWidget {
                           children: [
                             const Icon(
                               Icons.phone_outlined,
-                              size: 13,
+                              size: 14,
                               color: AppColors.textSecondary,
                             ),
-                            const SizedBox(width: 3),
+                            const SizedBox(width: 6),
                             Text(
                               member.phoneNumber!,
                               style: const TextStyle(
-                                fontSize: 11.5,
+                                fontSize: 13,
                                 color: AppColors.textSecondary,
                               ),
                             ),
@@ -135,30 +133,27 @@ class MemberCard extends StatelessWidget {
                     ],
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
 
                   // Hàng 2: Ngày sinh + Giới tính
                   Row(
                     children: [
                       // Ngày sinh
-                      if (member.dateOfBirth != null)
-                        Row(
-                          children: [
+                      if (member.dateOfBirth != null)                       
                             const Icon(
                               Icons.cake_outlined,
-                              size: 13,
+                              size: 14,
                               color: AppColors.textSecondary,
                             ),
-                            const SizedBox(width: 3),
+                            const SizedBox(width: 6),
                             Text(
                               member.dateOfBirth!,
                               style: const TextStyle(
-                                fontSize: 11.5,
+                                fontSize: 13,
                                 color: AppColors.textSecondary,
                               ),
                             ),
-                          ],
-                        ),
+                     
 
                       const Spacer(),
 
@@ -167,16 +162,16 @@ class MemberCard extends StatelessWidget {
                         children: [
                           Icon(
                             isMale ? Icons.male_rounded : Icons.female_rounded,
-                            size: 15,
+                            size: 16,
                             color: isMale ? AppColors.male : AppColors.female,
                           ),
-                          const SizedBox(width: 2),
+                          const SizedBox(width: 6),
                           Text(
                             member.gender,
                             style: TextStyle(
-                              fontSize: 11.5,
+                              fontSize: 13,
                               color: isMale ? AppColors.male : AppColors.female,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -218,8 +213,8 @@ class MemberCard extends StatelessWidget {
       children: [
         // Avatar tròn
         Container(
-          width: 60,
-          height: 60,
+          width: 72,
+          height: 72,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
@@ -229,9 +224,9 @@ class MemberCard extends StatelessWidget {
             color: isMale ? AppColors.maleBg : AppColors.femaleBg,
           ),
           child: ClipOval(
-            child: member.avatarUrl != null && member.avatarUrl!.isNotEmpty
+            child: member.resolvedAvatarUrl != null && member.resolvedAvatarUrl!.isNotEmpty
                 ? Image.network(
-                    member.avatarUrl!,
+                    member.resolvedAvatarUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stack) => _buildDefaultAvatar(isMale),
                   )
@@ -242,15 +237,20 @@ class MemberCard extends StatelessWidget {
         // Badge Đời (phía dưới trái avatar)
         if (member.generation != null)
           Positioned(
-            bottom: -4,
-            left: 0,
-            right: 0,
-            child: Center(
+            bottom: -6,
+            left: 6,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.primaryMedium,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x22000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Text(
                   'Đời ${member.generation}',
@@ -261,7 +261,6 @@ class MemberCard extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
           ),
       ],
     );
