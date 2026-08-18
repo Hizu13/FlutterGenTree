@@ -93,3 +93,76 @@ class Relationship(Base):
 
     person1 = relationship("Person", foreign_keys=[person1_id])
     person2 = relationship("Person", foreign_keys=[person2_id])
+
+# ============================================================================
+# EVENT MODELS - Quản lý sự kiện gia đình (Giỗ, họp họ, lễ tảo mộ...)
+# ============================================================================
+
+class Event(Base):
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    
+    # Ngày âm lịch
+    lunar_day = Column(Integer, nullable=True)
+    lunar_month = Column(Integer, nullable=True)
+    lunar_year = Column(Integer, nullable=True)
+    
+    # Ngày dương lịch (tính toán từ âm lịch hoặc nhập trực tiếp)
+    solar_date = Column(Date, nullable=True)
+    
+    # Thời gian sự kiện
+    time_start = Column(String(10), nullable=True)  # "09:00"
+    time_end = Column(String(10), nullable=True)    # "11:00"
+    
+    # Thông tin thêm
+    note = Column(Text, nullable=True)
+    creator_id = Column(Integer, ForeignKey("persons.id"), nullable=True)
+    is_notified = Column(Integer, default=0)  # 0: chưa thông báo, 1: đã thông báo
+    
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+    # Relationships
+    family = relationship("Family")
+    creator = relationship("Person", foreign_keys=[creator_id])
+
+
+# ============================================================================
+# FINANCE MODELS - Quản lý tài chính gia phả (Thu, chi, công đức)
+# ============================================================================
+
+class TransactionTypeEnum(enum.Enum):
+    income = "income"      # Thu
+    expense = "expense"    # Chi
+    merit = "merit"        # Công đức
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=True)  # Người thực hiện giao dịch
+    
+    title = Column(String(255), nullable=False)
+    amount = Column(Integer, nullable=False)  # Số tiền (VNĐ)
+    type = Column(Enum(TransactionTypeEnum), nullable=False)
+    category = Column(String(100), nullable=True)  # Danh mục: "Lễ vật", "Quà tặng", "Sửa mộ"...
+    
+    transaction_date = Column(Date, nullable=False)
+    note = Column(Text, nullable=True)
+    
+    # Trạng thái phê duyệt (cho các khoản chi lớn)
+    requires_approval = Column(Integer, default=0)  # 0: không cần, 1: cần phê duyệt
+    is_approved = Column(Integer, default=1)  # 0: chưa duyệt, 1: đã duyệt
+    approved_by = Column(Integer, ForeignKey("persons.id"), nullable=True)
+    
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+    # Relationships
+    family = relationship("Family")
+    person = relationship("Person", foreign_keys=[person_id])
+    approver = relationship("Person", foreign_keys=[approved_by])
