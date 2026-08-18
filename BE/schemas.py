@@ -16,9 +16,25 @@ class FamilyCreate(FamilyBase):
 class FamilyRead(FamilyBase):
     id: int
     join_code: Optional[str] = None
+    owner_id: Optional[int] = None
+    user_role: Optional[str] = "member"
+    member_count: Optional[int] = 0
 
     class Config:
         from_attributes = True
+
+class FamilyUpdateRequest(BaseModel):
+    """Schema chỉnh sửa thông tin gia phả (Dành cho Admin/Owner)"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    origin_location: Optional[str] = None
+    join_code: Optional[str] = None
+
+
+class FamilyJoinRequest(BaseModel):
+    """Schema gửi yêu cầu tham gia gia phả bằng mã code"""
+    join_code: str
+    branch_type: Optional[str] = "Họ nội"  # "Họ nội" hoặc "Họ ngoại"
 
 
 class PersonBase(BaseModel):
