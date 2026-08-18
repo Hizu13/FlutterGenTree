@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gentree/config/app_color.dart';
 import 'package:gentree/features/event/models/event_model.dart';
 import 'package:gentree/features/event/screens/event_screen.dart';
+import 'package:gentree/features/event/services/event_api_service.dart';
 import 'package:gentree/features/finance/screens/finance_screen.dart';
 import 'package:gentree/features/member/screens/member_list_screen.dart';
 import '../../tree/screens/tree_screen.dart';
@@ -11,9 +12,6 @@ import '../../auth/services/auth_service.dart';
 import '../../member/repositories/member_repository.dart';
 import '../models/family_model.dart';
 import '../services/family_api_service.dart';
-
-
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,8 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentBottomIndex = 0;
   bool _showRoleMenu = false;
   bool _isEventNotified = false;
-  final List<EventModel> _events = EventModel.sampleEvents;
- UserModel? _currentUser;
+  List<EventModel> _events = [];
+  UserModel? _currentUser;
   FamilyModel? _currentFamily;
   List<FamilyModel> _myFamilies = [];
   String _currentBranch = 'Họ nội';
@@ -73,6 +71,42 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentBranch = 'Họ nội';
       }
     });
+
+    await _loadUpcomingEvents();
+  }
+
+  Future<void> _loadUpcomingEvents() async {
+    final familyId = _currentFamily?.id;
+    try {
+      final events = await EventApiService.getEvents(
+        familyId: familyId,
+        autoSync: true,
+      );
+      if (mounted) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+
+        final upcoming = events.where((e) {
+          final date = e.solarDate ?? e.date;
+          final d = DateTime(date.year, date.month, date.day);
+          return !d.isBefore(today);
+        }).toList();
+        upcoming.sort((a, b) => (a.solarDate ?? a.date).compareTo(b.solarDate ?? b.date));
+
+        final past = events.where((e) {
+          final date = e.solarDate ?? e.date;
+          final d = DateTime(date.year, date.month, date.day);
+          return d.isBefore(today);
+        }).toList();
+        past.sort((a, b) => (b.solarDate ?? b.date).compareTo(a.solarDate ?? a.date));
+
+        setState(() {
+          _events = [...upcoming, ...past];
+        });
+      }
+    } catch (e) {
+      debugPrint('[!] Error loading events on HomeScreen: $e');
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -128,13 +162,14 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
   }
-  // Lấy sự kiện đầu tiên làm sự kiện sắp tới (tránh lỗi null)
-  EventModel? get _nextEvent => _events.isNotEmpty ? _events.first : null;
 
   void _onTabSelected(int index) {
     setState(() {
       _currentBottomIndex = index;
     });
+    if (index == 0) {
+      _loadUpcomingEvents();
+    }
   }
 
   @override
@@ -160,43 +195,51 @@ class _HomeScreenState extends State<HomeScreen> {
         return Stack(
           children: [
             // Nội dung chính cuộn dọc (Tab Trang chủ)
-            SingleChildScrollView(
-              child: Column(
-                children: [
-                  // 1. Header màu nâu đậm chào mừng người dùng
-                  _buildHeaderSection(),
+            RefreshIndicator(
+              onRefresh: () async {
+                await _loadCurrentUser();
+                await _loadFamilyData();
+              },
+              color: AppColors.primary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    // 1. Header màu nâu đậm chào mừng người dùng
+                    _buildHeaderSection(),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // 2. Banner Tiêu đề Gia phả dòng họ
-                  _buildFamilyBannerTitle(),
+                    // 2. Banner Tiêu đề Gia phả dòng họ
+                    _buildFamilyBannerTitle(),
 
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // 3. Grid Lối tắt Thao tác nhanh
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildQuickActionsGrid(),
-                  ),
+                    // 3. Grid Lối tắt Thao tác nhanh
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _buildQuickActionsGrid(),
+                    ),
 
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // 4. Banner Xác thực thành viên bằng AI
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildAiVerificationBanner(),
-                  ),
+                    // 4. Banner Xác thực thành viên bằng AI
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _buildAiVerificationBanner(),
+                    ),
 
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // 5. Section Sự kiện sắp tới
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildUpcomingEventSection(),
-                  ),
+                    // 5. Section Sự kiện sắp tới
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _buildUpcomingEventSection(),
+                    ),
 
-                  const SizedBox(height: 28),
-                ],
+                    const SizedBox(height: 28),
+                  ],
+                ),
               ),
             ),
 
@@ -814,6 +857,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       FamilyApiService.saveCurrentFamily(_currentFamily!);
       MemberRepository.invalidateCache();
+      _loadUpcomingEvents();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -1499,11 +1543,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ===========================================================================
-  // 5. SECTION SỰ KIỆN SẮP TỚI
+  // 5. SECTION SỰ KIỆN SẮP TỚI (HIỂN THỊ 3 SỰ KIỆN GẦN NHẤT)
   // ===========================================================================
   Widget _buildUpcomingEventSection() {
-    final event = _nextEvent;
-    if (event == null) return const SizedBox.shrink();
+    final upcomingEvents = _events.take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1552,157 +1595,201 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
-            boxShadow: const [
-              BoxShadow(
-                color: AppColors.shadow,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Khung ngày tháng -> Khớp getter trong EventModel
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.dateBadge,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      event.dayString, // Đã đổi từ dayLabel -> dayString
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        height: 1.0,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      event.monthLabel, // Lấy "THÁNG XX"
-                      style: const TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    Text(
-                      event.yearLabel,
-                      style: const TextStyle(
-                        fontSize: 8.5,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Thông tin sự kiện
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event.title,
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.access_time_rounded,
-                          size: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          event.time, // Đã đổi từ timeRange -> time
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons
-                              .notes_rounded, // Đổi icon địa điểm -> icon ghi chú
-                          size: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            event.note.isNotEmpty
-                                ? event.note
-                                : event.dateRange, // Dùng note hoặc dateRange
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Nút chuông thông báo
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _isEventNotified = !_isEventNotified;
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
+        if (upcomingEvents.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: _isEventNotified
-                        ? AppColors.surfaceWarm
-                        : AppColors.surfaceMuted,
+                    color: AppColors.surfaceWarm,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: _isEventNotified
-                          ? AppColors.primaryGold
-                          : AppColors.border,
-                    ),
                   ),
-                  child: Icon(
-                    _isEventNotified
-                        ? Icons.notifications_active_rounded
-                        : Icons.notifications_none_rounded,
-                    color: _isEventNotified
-                        ? AppColors.primaryGold
-                        : AppColors.textSecondary,
-                    size: 20,
+                  child: const Icon(
+                    Icons.event_available_rounded,
+                    color: AppColors.primaryMedium,
+                    size: 22,
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Chưa có sự kiện nào sắp tới trong gia phả',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...upcomingEvents.map((event) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildUpcomingEventCard(event),
+              )),
       ],
+    );
+  }
+
+  Widget _buildUpcomingEventCard(EventModel event) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Khung ngày tháng
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.dateBadge,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  event.dayString,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  event.monthLabel,
+                  style: const TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white70,
+                  ),
+                ),
+                Text(
+                  event.yearLabel,
+                  style: const TextStyle(
+                    fontSize: 8.5,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Thông tin sự kiện
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.access_time_rounded,
+                      size: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      event.time,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.notes_rounded,
+                      size: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        event.note.isNotEmpty ? event.note : event.dateRange,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Nút chuông thông báo
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isEventNotified = !_isEventNotified;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _isEventNotified
+                    ? AppColors.surfaceWarm
+                    : AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _isEventNotified
+                      ? AppColors.primaryGold
+                      : AppColors.border,
+                ),
+              ),
+              child: Icon(
+                _isEventNotified
+                    ? Icons.notifications_active_rounded
+                    : Icons.notifications_none_rounded,
+                color: _isEventNotified
+                    ? AppColors.primaryGold
+                    : AppColors.textSecondary,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
