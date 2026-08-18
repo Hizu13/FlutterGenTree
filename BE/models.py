@@ -44,6 +44,7 @@ class Family(Base):
     description = Column(Text, nullable=True)
     origin_location = Column(String(255), nullable=True)
     join_code = Column(String(10), unique=True, nullable=True)
+    owner_id = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP, nullable=True)
 
     members = relationship("Person", back_populates="family")
