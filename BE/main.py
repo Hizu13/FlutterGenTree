@@ -21,6 +21,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Kích hoạt middleware gia hạn session
 
+app.include_router(auth.router)
 app.include_router(members.router)
 app.include_router(upload.router) # <--- Include
 app.include_router(events.router) # <--- Include Events
