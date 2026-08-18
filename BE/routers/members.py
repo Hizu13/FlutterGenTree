@@ -6,10 +6,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from db.mysql_connection import get_db
-from models import Person
+from models import Person, Member
 from schemas import MemberFlutterRead, MemberFlutterCreate
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel
 from db.neo4j_connection import (
     add_person_to_graph,
     delete_person_from_graph,
@@ -17,6 +18,9 @@ from db.neo4j_connection import (
     create_relationship_in_graph,
     neo4j_conn,
 )
+# Alias helper neo4j
+add_member_to_graph = add_person_to_graph
+delete_member_from_graph = delete_person_from_graph
 
 router = APIRouter(prefix="/api/flutter/members", tags=["Flutter Members"])
 
@@ -64,7 +68,7 @@ def _get_parent_name(db: Session, parent_id: Optional[int]) -> Optional[str]:
     """Tra cứu tên cha/mẹ từ DB"""
     if parent_id is None:
         return None
-    parent = db.query(Person).filter(Person.id == parent_id).first()
+    parent = db.query(Member).filter(Member.id == parent_id).first()
     if parent:
         last = parent.last_name or ""
         first = parent.first_name or ""
@@ -84,35 +88,51 @@ def _split_full_name(full_name: str):
     return " ".join(parts[:-1]), parts[-1]
 
 
-def _person_to_flutter(db: Session, p: Person, request: Optional[Request] = None) -> dict:
-    """Chuyển đổi Person DB record → dict theo format MemberFlutterRead."""
-    full_name = f"{p.last_name or ''} {p.first_name or ''}".strip()
+def _member_to_flutter(db: Session, m: Member, request: Optional[Request] = None) -> dict:
+    """Chuyển đổi Member DB record → dict theo format MemberFlutterRead."""
+    full_name = getattr(m, 'full_name', None) or f"{getattr(m, 'last_name', '') or ''} {getattr(m, 'first_name', '') or ''}".strip()
 
     # Xác định status từ date_of_death
-    status = "Đã mất" if p.date_of_death else "Còn sống"
+    status = "Đã mất" if m.date_of_death else "Còn sống"
+
+    created_at_str = None
+    if getattr(m, 'created_at', None):
+        try:
+            created_at_str = m.created_at.strftime("%d/%m/%Y %H:%M:%S")
+        except Exception:
+            created_at_str = str(m.created_at)
 
     return {
-        "id": str(p.id),
+        "id": str(m.id),
+        "userId": getattr(m, 'user_id', None),
+        "familyId": getattr(m, 'family_id', None),
         "fullName": full_name,
-        "gender": _gender_to_vn(p.gender),
+        "gender": _gender_to_vn(m.gender),
+        "role": getattr(m, 'role', 'member') or 'member',
         "status": status,
-        "dateOfBirth": _date_to_vn(p.date_of_birth),
-        "placeOfBirth": p.place_of_birth,
-        "fatherId": str(p.father_id) if p.father_id else None,
-        "fatherName": _get_parent_name(db, p.father_id),
-        "motherId": str(p.mother_id) if p.mother_id else None,
-        "motherName": _get_parent_name(db, p.mother_id),
-        "phoneNumber": p.phone_number,
-        "email": getattr(p, 'email', None),
-        "currentAddress": p.permanent_address,
-        "dateOfDeath": _date_to_vn(p.date_of_death),
-        "placeOfDeath": getattr(p, 'place_of_death', None),
-        "occupation": getattr(p, 'occupation', None),
-        "notes": p.biography,
-        "avatarUrl": (str(request.base_url).rstrip('/') + p.avatar_url) if (p.avatar_url and request and p.avatar_url.startswith('/')) else p.avatar_url,
-        "generation": getattr(p, 'generation', None),
-        "identityCard": p.cccd,
+        "dateOfBirth": _date_to_vn(m.date_of_birth),
+        "placeOfBirth": m.place_of_birth,
+        "fatherId": str(m.father_id) if m.father_id else None,
+        "fatherName": _get_parent_name(db, m.father_id),
+        "motherId": str(m.mother_id) if m.mother_id else None,
+        "motherName": _get_parent_name(db, m.mother_id),
+        "phoneNumber": m.phone_number,
+        "email": getattr(m, 'email', None),
+        "currentAddress": getattr(m, 'currentAddress', None) or m.permanent_address,
+        "permanentAddress": m.permanent_address,
+        "dateOfDeath": _date_to_vn(m.date_of_death),
+        "placeOfDeath": getattr(m, 'place_of_death', None),
+        "occupation": getattr(m, 'occupation', None),
+        "notes": getattr(m, 'notes', None) or getattr(m, 'biography', None),
+        "avatarUrl": (str(request.base_url).rstrip('/') + m.avatar_url) if (m.avatar_url and request and m.avatar_url.startswith('/')) else m.avatar_url,
+        "generation": getattr(m, 'generation', None),
+        "identityCard": m.cccd,
+        "createdAt": created_at_str,
     }
+
+
+# Alias for backward compatibility
+_person_to_flutter = _member_to_flutter
 
 
 # ===========================================================================
@@ -126,21 +146,21 @@ def get_all_members(
     db: Session = Depends(get_db),
 ):
     """Lấy toàn bộ danh sách thành viên. Nếu có family_id thì lọc theo gia phả."""
-    query = db.query(Person)
+    query = db.query(Member)
     if family_id:
-        query = query.filter(Person.family_id == family_id)
+        query = query.filter(Member.family_id == family_id)
 
-    persons = query.all()
-    return [_person_to_flutter(db, p, request) for p in persons]
+    member = query.all()
+    return [_member_to_flutter(db, p, request) for p in members]
 
 
 @router.get("/{member_id}", response_model=MemberFlutterRead)
 def get_member_by_id(request: Request, member_id: int, db: Session = Depends(get_db)):
     """Lấy chi tiết một thành viên theo ID."""
-    person = db.query(Person).filter(Person.id == member_id).first()
-    if not person:
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
-    return _person_to_flutter(db, person, request)
+    return _member_to_flutter(db, member, request)
 
 
 @router.post("/", response_model=MemberFlutterRead)
@@ -159,15 +179,16 @@ def create_member(request: Request, data: MemberFlutterCreate, db: Session = Dep
         except Exception:
             return None
 
-    person = Person(
+    member = Member(
         first_name=first_name,
         last_name=last_name,
         gender=_gender_to_db(data.gender),
+        role=data.role or "member",
         date_of_birth=_date_from_vn(data.dateOfBirth),
         date_of_death=_date_from_vn(data.dateOfDeath),
         place_of_birth=data.placeOfBirth,
         phone_number=data.phoneNumber,
-        permanent_address=data.currentAddress,
+        permanent_address=data.permanentAddress or data.currentAddress,
         avatar_url=data.avatarUrl,
         biography=data.notes,
         occupation=data.occupation,
@@ -179,83 +200,98 @@ def create_member(request: Request, data: MemberFlutterCreate, db: Session = Dep
         family_id=data.familyId,
     )
 
-    db.add(person)
+    db.add(member)
     db.commit()
-    db.refresh(person)
+    db.refresh(member)
 
     # Sync to Neo4j (best-effort)
     try:
-        add_person_to_graph(
-            id=person.id,
-            full_name=f"{person.last_name or ''} {person.first_name or ''}".strip(),
-            gender=person.gender,
-            family_id=person.family_id,
-            father_id=person.father_id,
-            mother_id=person.mother_id,
+        add_member_to_graph(
+            id=member.id,
+            full_name=f"{member.last_name or ''} {member.first_name or ''}".strip(),
+            gender=member.gender,
+            family_id=member.family_id,
+            father_id=member.father_id,
+            mother_id=member.mother_id,
         )
     except Exception as e:
         print(f"[!] Neo4j sync failed on create: {e}")
-    return _person_to_flutter(db, person, request)
+    return _member_to_flutter(db, member, request)
 
 
 @router.put("/{member_id}", response_model=MemberFlutterRead)
 def update_member(request: Request, member_id: int, data: MemberFlutterCreate, db: Session = Depends(get_db)):
     """Cập nhật thông tin thành viên."""
-    person = db.query(Person).filter(Person.id == member_id).first()
-    if not person:
+    person = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
+
+    def _safe_int(val):
+        try:
+            if val is None:
+                return None
+            s = str(val).strip()
+            if s == "":
+                return None
+            return int(s)
+        except Exception:
+            return None
 
     last_name, first_name = _split_full_name(data.fullName)
 
-    person.first_name = first_name
-    person.last_name = last_name
-    person.gender = _gender_to_db(data.gender)
-    person.date_of_birth = _date_from_vn(data.dateOfBirth)
-    person.date_of_death = _date_from_vn(data.dateOfDeath)
-    person.place_of_birth = data.placeOfBirth
-    person.phone_number = data.phoneNumber
-    person.permanent_address = data.currentAddress
-    person.avatar_url = data.avatarUrl
-    person.biography = data.notes
-    person.occupation = data.occupation
-    person.generation = data.generation
-    person.place_of_death = data.placeOfDeath
-    person.cccd = data.identityCard
+    member.first_name = first_name
+    member.last_name = last_name
+    member.gender = _gender_to_db(data.gender)
+    if data.role:
+        member.role = data.role
+    if data.familyId is not None:
+        member.family_id = data.familyId
+    member.date_of_birth = _date_from_vn(data.dateOfBirth)
+    member.date_of_death = _date_from_vn(data.dateOfDeath)
+    member.place_of_birth = data.placeOfBirth
+    member.phone_number = data.phoneNumber
+    member.permanent_address = data.permanentAddress or data.currentAddress
+    member.avatar_url = data.avatarUrl
+    member.biography = data.notes
+    member.occupation = data.occupation
+    member.generation = data.generation
+    member.place_of_death = data.placeOfDeath
+    member.cccd = data.identityCard
 
     if data.fatherId is not None:
-        person.father_id = _safe_int(data.fatherId)
+        member.father_id = _safe_int(data.fatherId)
     if data.motherId is not None:
-        person.mother_id = _safe_int(data.motherId)
+        member.mother_id = _safe_int(data.motherId)
 
     db.commit()
-    db.refresh(person)
+    db.refresh(member)
 
     # Sync to Neo4j: replace node (delete+create) to keep relationships in sync
     try:
-        delete_person_from_graph(person.id)
-        add_person_to_graph(
-            id=person.id,
-            full_name=f"{person.last_name or ''} {person.first_name or ''}".strip(),
-            gender=person.gender,
-            family_id=person.family_id,
-            father_id=person.father_id,
-            mother_id=person.mother_id,
+        delete_member_from_graph(member.id)
+        add_member_to_graph(
+            id=member.id,
+            full_name=f"{member.last_name or ''} {member.first_name or ''}".strip(),
+            gender=member.gender,
+            family_id=member.family_id,
+            father_id=member.father_id,
+            mother_id=member.mother_id,
         )
     except Exception as e:
         print(f"[!] Neo4j sync failed on update: {e}")
-    return _person_to_flutter(db, person, request)
+    return _member_to_flutter(db, member, request)
 
 
 @router.delete("/{member_id}")
 def delete_member(member_id: int, db: Session = Depends(get_db)):
     """Xóa thành viên theo ID."""
-    person = db.query(Person).filter(Person.id == member_id).first()
-    if not person:
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
 
     # Xóa các liên kết cha/mẹ của con cái trước khi xóa
-    children = db.query(Person).filter(
-        (Person.father_id == member_id) | (Person.mother_id == member_id)
+    children = db.query(Member).filter(
+        (Member.father_id == member_id) | (Member.mother_id == member_id)
     ).all()
     for child in children:
         if child.father_id == member_id:
@@ -263,7 +299,7 @@ def delete_member(member_id: int, db: Session = Depends(get_db)):
         if child.mother_id == member_id:
             child.mother_id = None
 
-    db.delete(person)
+    db.delete(member)
     db.commit()
 
     # Sync delete to Neo4j (best-effort)
@@ -272,6 +308,26 @@ def delete_member(member_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"[!] Neo4j sync failed on delete: {e}")
     return {"detail": f"Đã xóa thành viên ID={member_id}"}
+
+class MemberRoleUpdateRequest(BaseModel):
+    role: str  # 'admin', 'editor', 'member'
+
+
+@router.put("/{member_id}/role")
+def update_member_role(member_id: int, data: MemberRoleUpdateRequest, db: Session = Depends(get_db)):
+    """Phân quyền hoặc hủy quyền cho thành viên trong gia phả."""
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
+
+    target_role = data.role.strip().lower()
+    if target_role not in ["admin", "editor", "member"]:
+        raise HTTPException(status_code=400, detail="Vai trò không hợp lệ (admin, editor, member)")
+
+    member.role = target_role
+    db.commit()
+    db.refresh(member)
+    return {"message": f"Đã cập nhật vai trò thành {target_role}", "role": member.role}
 
 
 # ---------------------------------------------------------------------------
@@ -295,43 +351,43 @@ def neo4j_resync_family(family_id: int, db: Session = Depends(get_db)):
         print(f"[!] Neo4j delete_family failed: {e}")
 
     # 2) Recreate nodes and parent relationships
-    persons = db.query(Person).filter(Person.family_id == family_id).all()
-    for p in persons:
+    members = db.query(Member).filter(Member.family_id == family_id).all()
+    for m in members:
         try:
-            add_person_to_graph(
-                id=p.id,
-                full_name=f"{p.last_name or ''} {p.first_name or ''}".strip(),
-                gender=p.gender,
-                family_id=p.family_id,
-                father_id=p.father_id,
-                mother_id=p.mother_id,
+            add_member_to_graph(
+                id=m.id,
+                full_name=f"{m.last_name or ''} {m.first_name or ''}".strip(),
+                gender=m.gender,
+                family_id=m.family_id,
+                father_id=m.father_id,
+                mother_id=m.mother_id,
             )
         except Exception as e:
-            print(f"[!] Neo4j add_person failed for {p.id}: {e}")
+            print(f"[!] Neo4j add_member failed for {m.id}: {e}")
 
     # 3) Ensure explicit parent edges (MERGE in create_relationship will dedupe)
-    for p in persons:
-        if p.father_id:
+    for m in members:
+        if m.father_id:
             try:
-                create_relationship_in_graph(p.father_id, p.id, 'FATHER_OF')
+                create_relationship_in_graph(m.father_id, m.id, 'FATHER_OF')
             except Exception as e:
                 print(f"[!] Neo4j create relationship failed: {e}")
-        if p.mother_id:
+        if m.mother_id:
             try:
-                create_relationship_in_graph(p.mother_id, p.id, 'MOTHER_OF')
+                create_relationship_in_graph(m.mother_id, m.id, 'MOTHER_OF')
             except Exception as e:
                 print(f"[!] Neo4j create relationship failed: {e}")
 
-    return {"detail": f"Resync requested for family_id={family_id}", "count": len(persons)}
+    return {"detail": f"Resync requested for family_id={family_id}", "count": len(members)}
 
 
 @router.post('/neo4j/resync_all')
 def neo4j_resync_all(db: Session = Depends(get_db)):
-    """Đồng bộ lại toàn bộ dữ liệu Person (theo family_id) từ MySQL lên Neo4j.
+    """Đồng bộ lại toàn bộ dữ liệu Member (theo family_id) từ MySQL lên Neo4j.
     Cẩn thận: có thể tốn thời gian với nhiều bản ghi.
     """
     # Lấy danh sách family_id duy nhất
-    family_ids = db.query(Person.family_id).distinct().all()
+    family_ids = db.query(Member.family_id).distinct().all()
     families = [fid[0] for fid in family_ids if fid[0] is not None]
     total = 0
     for fam in families:
@@ -340,30 +396,30 @@ def neo4j_resync_all(db: Session = Depends(get_db)):
         except Exception as e:
             print(f"[!] Neo4j delete_family failed for {fam}: {e}")
 
-        persons = db.query(Person).filter(Person.family_id == fam).all()
-        for p in persons:
+        members = db.query(Member).filter(Member.family_id == fam).all()
+        for m in members:
             try:
                 add_person_to_graph(
-                    id=p.id,
-                    full_name=f"{p.last_name or ''} {p.first_name or ''}".strip(),
-                    gender=p.gender,
-                    family_id=p.family_id,
-                    father_id=p.father_id,
-                    mother_id=p.mother_id,
+                    id=m.id,
+                    full_name=f"{m.last_name or ''} {m.first_name or ''}".strip(),
+                    gender=m.gender,
+                    family_id=m.family_id,
+                    father_id=m.father_id,
+                    mother_id=m.mother_id,
                 )
                 total += 1
             except Exception as e:
-                print(f"[!] Neo4j add_person failed for {p.id}: {e}")
+                print(f"[!] Neo4j add_person failed for {m.id}: {e}")
 
-        for p in persons:
-            if p.father_id:
+        for m in members:
+            if m.father_id:
                 try:
-                    create_relationship_in_graph(p.father_id, p.id, 'FATHER_OF')
+                    create_relationship_in_graph(m.father_id, m.id, 'FATHER_OF')
                 except Exception as e:
                     print(f"[!] Neo4j create relationship failed: {e}")
-            if p.mother_id:
+            if m.mother_id:
                 try:
-                    create_relationship_in_graph(p.mother_id, p.id, 'MOTHER_OF')
+                    create_relationship_in_graph(m.mother_id, m.id, 'MOTHER_OF')
                 except Exception as e:
                     print(f"[!] Neo4j create relationship failed: {e}")
 

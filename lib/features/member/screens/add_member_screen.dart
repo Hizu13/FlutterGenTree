@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../config/app_color.dart';
 import '../models/member_model.dart';
-import 'dart:io';	
+import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../services/member_api_service.dart';
 
-/// Màn hình Thêm Thành Viên Mới.
-/// Thiết kế theo Figma: AppBar nâu đậm, form 4 section: Thông tin cá nhân,
-/// Thông tin gia đình, Thông tin liên hệ, và thông tin bổ sung.
+
 class AddMemberScreen extends StatefulWidget {
   /// Danh sách thành viên hiện có (để chọn bố/mẹ)
   final List<MemberModel> existingMembers;
@@ -22,7 +20,6 @@ class AddMemberScreen extends StatefulWidget {
     required this.existingMembers,
     required this.onSaved,
     this.initialMember,
-
   });
 
   @override
@@ -46,13 +43,12 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   final _notesCtrl = TextEditingController();
   final _identityCardCtrl = TextEditingController();
 
-
   // ── State ─────────────────────────────────────────────────────────────────
   String _gender = 'Nam';
   String _status = 'Còn sống';
   MemberModel? _selectedFather;
   MemberModel? _selectedMother;
-  XFile? _avatarFile;	  
+  XFile? _avatarFile;
   String? _avatarUrl;
   @override
   void initState() {
@@ -75,16 +71,21 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       _avatarUrl = init.avatarUrl;
       if (init.fatherId != null) {
         try {
-          _selectedFather = widget.existingMembers.firstWhere((m) => m.id == init.fatherId);
+          _selectedFather = widget.existingMembers.firstWhere(
+            (m) => m.id == init.fatherId,
+          );
         } catch (_) {}
       }
       if (init.motherId != null) {
         try {
-          _selectedMother = widget.existingMembers.firstWhere((m) => m.id == init.motherId);
+          _selectedMother = widget.existingMembers.firstWhere(
+            (m) => m.id == init.motherId,
+          );
         } catch (_) {}
       }
     }
   }
+
   @override
   void dispose() {
     _scrollCtrl.dispose();
@@ -114,7 +115,9 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final id = widget.initialMember?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final id =
+        widget.initialMember?.id ??
+        DateTime.now().millisecondsSinceEpoch.toString();
     final member = MemberModel(
       id: id,
       fullName: _nameCtrl.text.trim(),
@@ -126,13 +129,23 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       fatherName: _selectedFather?.fullName,
       motherId: _selectedMother?.id,
       motherName: _selectedMother?.fullName,
-      phoneNumber: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+      phoneNumber: _phoneCtrl.text.trim().isEmpty
+          ? null
+          : _phoneCtrl.text.trim(),
       email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-      currentAddress: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+      currentAddress: _addressCtrl.text.trim().isEmpty
+          ? null
+          : _addressCtrl.text.trim(),
       dateOfDeath: _dodCtrl.text.trim().isEmpty ? null : _dodCtrl.text.trim(),
-      placeOfDeath: _placeOfDeathCtrl.text.trim().isEmpty ? null : _placeOfDeathCtrl.text.trim(),
-      occupation: _occupationCtrl.text.trim().isEmpty ? null : _occupationCtrl.text.trim(),
-      identityCard: _identityCardCtrl.text.trim().isEmpty ? null : _identityCardCtrl.text.trim(),
+      placeOfDeath: _placeOfDeathCtrl.text.trim().isEmpty
+          ? null
+          : _placeOfDeathCtrl.text.trim(),
+      occupation: _occupationCtrl.text.trim().isEmpty
+          ? null
+          : _occupationCtrl.text.trim(),
+      identityCard: _identityCardCtrl.text.trim().isEmpty
+          ? null
+          : _identityCardCtrl.text.trim(),
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       generation: widget.initialMember?.generation,
       avatarUrl: widget.initialMember?.avatarUrl,
@@ -140,32 +153,36 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 
     String? finalAvatarUrl = _avatarUrl ?? widget.initialMember?.avatarUrl;
 
-        if (_avatarFile != null) {
-          // show simple loading
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => const Center(child: CircularProgressIndicator()),
-          );
-          try {
-            final uploaded = await MemberApiService.uploadImage(
-              File(_avatarFile!.path),
-            );
-            finalAvatarUrl = uploaded;
-          } catch (e) {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Không thể upload ảnh: $e')));
-            return;
-          }
-          Navigator.of(context).pop();
-        }
+    if (_avatarFile != null) {
+      if (!mounted) return;
+      // show simple loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      try {
+        final uploaded = await MemberApiService.uploadImage(
+          File(_avatarFile!.path),
+        );
+        finalAvatarUrl = uploaded;
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Không thể upload ảnh: $e')));
+        return;
+      }
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+    }
 
-        final memberWithAvatar = member.copyWith(avatarUrl: finalAvatarUrl);
-        widget.onSaved(memberWithAvatar);    
-        Navigator.of(context).pop();
+    final memberWithAvatar = member.copyWith(avatarUrl: finalAvatarUrl);
+    widget.onSaved(memberWithAvatar);
+    if (mounted) Navigator.of(context).pop();
   }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     try {
@@ -345,19 +362,20 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                   widget.initialMember != null ? 'Chỉnh sửa thành viên' : 'Thêm thành viên',
-                    style: const TextStyle(
+                  widget.initialMember != null
+                      ? 'Chỉnh sửa thành viên'
+                      : 'Thêm thành viên',
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
                 Text(
-                  widget.initialMember != null ? 'Cập nhật thông tin thành viên' : 'Nhập thông tin thành viên mới',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
+                  widget.initialMember != null
+                      ? 'Cập nhật thông tin thành viên'
+                      : 'Nhập thông tin thành viên mới',
+                  style: const TextStyle(fontSize: 12, color: Colors.white70),
                 ),
               ],
             ),
@@ -439,104 +457,99 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   // SECTION 1: THÔNG TIN CÁ NHÂN
   // ===========================================================================
   Widget _buildPersonalInfoSection() {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Ảnh đại diện
-        _buildAvatarPicker(),
-        const SizedBox(width: 16),
+        // ── Ảnh đại diện căn giữa phía trên ──────────────────────────
+        Center(
+          child: _buildAvatarPicker(),
+        ),
+        const SizedBox(height: 16),
 
-        // Cột thông tin bên phải
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildLabel('Họ và tên'),
-              _buildTextFormField(
-                controller: _nameCtrl,
-                hint: 'Nhập họ và tên',
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Vui lòng nhập họ và tên'
-                    : null,
-              ),
+        // Họ và tên
+        _buildLabel('Họ và tên *'),
+        _buildTextFormField(
+          controller: _nameCtrl,
+          hint: 'Nhập họ và tên',
+          prefixIcon: Icons.person_outline_rounded,
+          validator: (v) => (v == null || v.trim().isEmpty)
+              ? 'Vui lòng nhập họ và tên'
+              : null,
+        ),
 
-              const SizedBox(height: 10),
+        const SizedBox(height: 12),
 
-              // Giới tính + Trạng thái
-              Row(
+        // Giới tính + Trạng thái
+        Row(
+          children: [
+            // Giới tính
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Giới tính
-                  Expanded(
-                    flex: 5,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel('Giới tính'),
-                        _buildGenderSelector(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Trạng thái
-                  Expanded(
-                    flex: 5,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel('Trạng thái'),
-                        _buildStatusDropdown(),
-                      ],
-                    ),
+                  _buildLabel('Giới tính'),
+                  _buildGenderSelector(),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Trạng thái
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Trạng thái'),
+                  _buildStatusDropdown(),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // Ngày sinh + Nơi sinh
+        Row(
+          children: [
+            // Ngày sinh
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Ngày sinh'),
+                  _buildDateField(
+                    controller: _dobCtrl,
+                    hint: 'dd/mm/yyyy',
                   ),
                 ],
               ),
-
-              const SizedBox(height: 10),
-
-              // Ngày sinh + Nơi sinh
-              Row(
+            ),
+            const SizedBox(width: 12),
+            // Nơi sinh
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Ngày sinh
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel('Ngày sinh'),
-                        _buildDateField(
-                          controller: _dobCtrl,
-                          hint: 'dd/mm/yyyy',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Nơi sinh
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel('Nơi sinh'),
-                        _buildTextFormField(
-                          controller: _pobCtrl,
-                          hint: 'Nhập nơi sinh',
-                          prefixIcon: Icons.location_on_outlined,
-                        ),
-                      ],
-                    ),
+                  _buildLabel('Nơi sinh'),
+                  _buildTextFormField(
+                    controller: _pobCtrl,
+                    hint: 'Nhập nơi sinh',
+                    prefixIcon: Icons.location_on_outlined,
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
 
-              const SizedBox(height: 10),
+        const SizedBox(height: 12),
 
-              // Căn cước công dân
-              _buildLabel('Căn cước công dân'),
-              _buildTextFormField(
-                controller: _identityCardCtrl,
-                hint: 'Nhập căn cước công dân',
-              ),
-            ],
-          ),
+        // Căn cước công dân
+        _buildLabel('Căn cước công dân'),
+        _buildTextFormField(
+          controller: _identityCardCtrl,
+          hint: 'Nhập số căn cước công dân',
+          prefixIcon: Icons.badge_outlined,
         ),
       ],
     );
@@ -549,8 +562,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       avatarChild = ClipOval(
         child: Image.file(
           File(_avatarFile!.path),
-          width: 80,
-          height: 80,
+          width: 84,
+          height: 84,
           fit: BoxFit.cover,
         ),
       );
@@ -558,15 +571,15 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       avatarChild = ClipOval(
         child: Image.network(
           _avatarUrl!,
-          width: 80,
-          height: 80,
+          width: 84,
+          height: 84,
           fit: BoxFit.cover,
         ),
       );
     } else {
-      avatarChild = Column(
+      avatarChild = const Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
+        children: [
           Icon(
             Icons.camera_alt_outlined,
             size: 26,
@@ -576,9 +589,9 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           Text(
             'Thêm ảnh',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               color: AppColors.primaryMedium,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -590,24 +603,27 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         GestureDetector(
           onTap: _pickImage,
           child: Container(
-            width: 80,
-            height: 80,
+            width: 84,
+            height: 84,
             decoration: BoxDecoration(
               color: AppColors.surfaceWarm,
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.border, width: 1.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x10000000),
+                  blurRadius: 6,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
             child: avatarChild,
           ),
         ),
         const SizedBox(height: 6),
         const Text(
-          'Định dạng: jpeg, png',
-          style: TextStyle(fontSize: 9, color: AppColors.textMuted),
-        ),
-        const Text(
-          'Kích thước tối đa 5MB',
-          style: TextStyle(fontSize: 9, color: AppColors.textMuted),
+          'Định dạng: jpeg, png (Tối đa 5MB)',
+          style: TextStyle(fontSize: 10, color: AppColors.textMuted),
         ),
       ],
     );
@@ -616,7 +632,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   // ── Gender Selector ────────────────────────────────────────────────────
   Widget _buildGenderSelector() {
     return Container(
-      height: 40,
+      height: 44,
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(10),
@@ -630,9 +647,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               onTap: () => setState(() => _gender = 'Nam'),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                margin: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: _gender == 'Nam' ? AppColors.white : Colors.transparent,
+                  color: _gender == 'Nam'
+                      ? AppColors.white
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: _gender == 'Nam'
                       ? [
@@ -646,6 +664,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.male_rounded,
@@ -655,14 +674,18 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                           : AppColors.textMuted,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      'Nam',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _gender == 'Nam'
-                            ? AppColors.textPrimary
-                            : AppColors.textMuted,
+                    Flexible(
+                      child: Text(
+                        'Nam',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _gender == 'Nam'
+                              ? AppColors.textPrimary
+                              : AppColors.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -676,7 +699,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               onTap: () => setState(() => _gender = 'Nữ'),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                margin: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: _gender == 'Nữ' ? AppColors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
@@ -692,6 +714,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.female_rounded,
@@ -701,14 +724,18 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                           : AppColors.textMuted,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      'Nữ',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _gender == 'Nữ'
-                            ? AppColors.textPrimary
-                            : AppColors.textMuted,
+                    Flexible(
+                      child: Text(
+                        'Nữ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _gender == 'Nữ'
+                              ? AppColors.textPrimary
+                              : AppColors.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -724,8 +751,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   // ── Status Dropdown ────────────────────────────────────────────────────
   Widget _buildStatusDropdown() {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(10),
@@ -740,15 +767,26 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
             size: 18,
             color: AppColors.textSecondary,
           ),
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.textPrimary,
-          ),
+          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
           dropdownColor: AppColors.white,
           borderRadius: BorderRadius.circular(12),
           items: const [
-            DropdownMenuItem(value: 'Còn sống', child: Text('Còn sống')),
-            DropdownMenuItem(value: 'Đã mất', child: Text('Đã mất')),
+            DropdownMenuItem(
+              value: 'Còn sống',
+              child: Text(
+                'Còn sống',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            DropdownMenuItem(
+              value: 'Đã mất',
+              child: Text(
+                'Đã mất',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
           onChanged: (val) {
             if (val != null) setState(() => _status = val);
@@ -842,10 +880,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
             size: 18,
             color: AppColors.textSecondary,
           ),
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.textPrimary,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
           dropdownColor: AppColors.white,
           borderRadius: BorderRadius.circular(12),
           items: [
@@ -946,10 +981,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildLabel('Ngày mất (nếu có)'),
-                  _buildDateField(
-                    controller: _dodCtrl,
-                    hint: 'dd/mm/yyyy',
-                  ),
+                  _buildDateField(controller: _dodCtrl, hint: 'dd/mm/yyyy'),
                 ],
               ),
             ),
@@ -1028,7 +1060,11 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                  Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Hủy bỏ',
@@ -1067,7 +1103,11 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline_rounded, size: 18, color: Colors.white),
+                  Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Lưu thành viên',
@@ -1117,23 +1157,23 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(
-        fontSize: 13,
-        color: AppColors.textPrimary,
-      ),
+      style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(
-          fontSize: 12.5,
-          color: AppColors.textMuted,
-        ),
+        hintStyle: const TextStyle(fontSize: 12.5, color: AppColors.textMuted),
         prefixIcon: prefixIcon != null
             ? Icon(prefixIcon, size: 16, color: AppColors.textMuted)
             : null,
-        prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
+        ),
         filled: true,
         fillColor: AppColors.surfaceMuted,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 11,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
@@ -1144,7 +1184,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryMedium, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppColors.primaryMedium,
+            width: 1.5,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -1168,10 +1211,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       child: AbsorbPointer(
         child: TextFormField(
           controller: controller,
-          style: const TextStyle(
-            fontSize: 13,
-            color: AppColors.textPrimary,
-          ),
+          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(
@@ -1183,10 +1223,16 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               size: 16,
               color: AppColors.textMuted,
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 36,
+            ),
             filled: true,
             fillColor: AppColors.surfaceMuted,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 11,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border),
@@ -1197,7 +1243,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.primaryMedium, width: 1.5),
+              borderSide: const BorderSide(
+                color: AppColors.primaryMedium,
+                width: 1.5,
+              ),
             ),
           ),
         ),
