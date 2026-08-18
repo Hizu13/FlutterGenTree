@@ -115,35 +115,35 @@ class Relationship(Base):
 # ============================================================================
 
 class Event(Base):
+    """
+    Model quản lý sự kiện gia tộc / dòng họ trong hệ thống:
+    - Sự kiện tự động đồng bộ từ Database: Sinh nhật (date_of_birth), Ngày giỗ (date_of_death / lunar_date_of_death).
+    - Sự kiện tùy chỉnh: Giỗ tổ, họp họ, lễ tảo mộ, mừng thọ, v.v.
+    """
     __tablename__ = "events"
 
     id = Column(Integer, primary_key=True, index=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=True, index=True)
+    member_id = Column(Integer, ForeignKey("members.id"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
-    
-    # Ngày âm lịch
+    event_type = Column(String(50), default="custom")  # birthday, death_anniversary, meeting, worship, custom
+    solar_date = Column(Date, nullable=True, index=True)
     lunar_day = Column(Integer, nullable=True)
     lunar_month = Column(Integer, nullable=True)
     lunar_year = Column(Integer, nullable=True)
-    
-    # Ngày dương lịch (tính toán từ âm lịch hoặc nhập trực tiếp)
-    solar_date = Column(Date, nullable=True)
-    
-    # Thời gian sự kiện
-    time_start = Column(String(10), nullable=True)  # "09:00"
-    time_end = Column(String(10), nullable=True)    # "11:00"
-    
-    # Thông tin thêm
+    time_start = Column(String(20), nullable=True)
+    time_end = Column(String(20), nullable=True)
+    location = Column(String(255), nullable=True)
     note = Column(Text, nullable=True)
-    creator_id = Column(Integer, ForeignKey("persons.id"), nullable=True)
-    is_notified = Column(Integer, default=0)  # 0: chưa thông báo, 1: đã thông báo
-    
+    creator_id = Column(Integer, nullable=True)
+    is_notified = Column(Integer, default=0)
+    is_auto_generated = Column(Integer, default=0)  # 1 = tự động sinh từ Member, 0 = người dùng tạo
     created_at = Column(TIMESTAMP, nullable=True)
     updated_at = Column(TIMESTAMP, nullable=True)
 
     # Relationships
-    family = relationship("Family")
-    creator = relationship("Person", foreign_keys=[creator_id])
+    family = relationship("Family", back_populates="events")
+    member = relationship("Member", foreign_keys=[member_id])
 
 
 # ============================================================================
