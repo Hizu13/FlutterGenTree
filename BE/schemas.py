@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import date
 
@@ -37,7 +37,7 @@ class FamilyJoinRequest(BaseModel):
     branch_type: Optional[str] = "Họ nội"  # "Họ nội" hoặc "Họ ngoại"
 
 
-class PersonBase(BaseModel):
+class MemberBase(BaseModel):
     cccd: Optional[str] = None
     first_name: str
     last_name: Optional[str] = None
@@ -57,20 +57,25 @@ class PersonBase(BaseModel):
     family_id: Optional[int] = None
 
 
-class PersonCreate(PersonBase):
+class MemberCreate(MemberBase):
     pass
 
 
-class PersonUpdate(PersonBase):
+class MemberUpdate(MemberBase):
     pass
 
 
-class PersonRead(PersonBase):
+class MemberRead(MemberBase):
     id: int
     role: Optional[str] = "member"
+    user_id: Optional[int] = None
 
     class Config:
         from_attributes = True
+
+class MemberRoleUpdateRequest(BaseModel):
+    """Schema cập nhật vai trò thành viên (Phân quyền / Hủy quyền Editor)"""
+    role: str  # "admin", "editor", "member"
 
 
 class RelationshipBase(BaseModel):
@@ -91,10 +96,14 @@ class RelationshipRead(RelationshipBase):
 
 
 class MemberFlutterRead(BaseModel):
+    """Schema chuyển đổi dữ liệu thành viên thân thiện với Flutter Mobile"""
     id: str
+    userId: Optional[int] = None
     fullName: str
     gender: str
     status: str
+    role: Optional[str] = "member"
+    familyId: Optional[int] = None
     dateOfBirth: Optional[str] = None
     placeOfBirth: Optional[str] = None
     fatherId: Optional[str] = None
@@ -104,6 +113,7 @@ class MemberFlutterRead(BaseModel):
     phoneNumber: Optional[str] = None
     email: Optional[str] = None
     currentAddress: Optional[str] = None
+    permanentAddress: Optional[str] = None
     dateOfDeath: Optional[str] = None
     placeOfDeath: Optional[str] = None
     occupation: Optional[str] = None
@@ -111,12 +121,16 @@ class MemberFlutterRead(BaseModel):
     avatarUrl: Optional[str] = None
     generation: Optional[int] = None
     identityCard: Optional[str] = None
+    createdAt: Optional[str] = None
 
 
 class MemberFlutterCreate(BaseModel):
+    """Schema nhận yêu cầu thêm / sửa thành viên từ Flutter Mobile"""
     fullName: str
     gender: str
+    role: Optional[str] = "member"
     status: Optional[str] = "Còn sống"
+    familyId: Optional[int] = None
     dateOfBirth: Optional[str] = None
     placeOfBirth: Optional[str] = None
     fatherId: Optional[str] = None
@@ -124,6 +138,7 @@ class MemberFlutterCreate(BaseModel):
     phoneNumber: Optional[str] = None
     email: Optional[str] = None
     currentAddress: Optional[str] = None
+    permanentAddress: Optional[str] = None
     dateOfDeath: Optional[str] = None
     placeOfDeath: Optional[str] = None
     occupation: Optional[str] = None
@@ -131,7 +146,6 @@ class MemberFlutterCreate(BaseModel):
     avatarUrl: Optional[str] = None
     generation: Optional[int] = None
     identityCard: Optional[str] = None
-    familyId: Optional[int] = None
 
 
 class UserLoginRequest(BaseModel):

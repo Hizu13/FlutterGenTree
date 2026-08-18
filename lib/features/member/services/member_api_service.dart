@@ -129,13 +129,14 @@ class MemberApiService {
       } catch (_) {}
 
       final request = http.MultipartRequest('POST', uri);
-      final mimeType = lookupMimeType(file.path) ?? 'application/octet-stream';
+      final fileName = file.path.split(Platform.pathSeparator).last;
+      final mimeType = lookupMimeType(file.path) ?? 'image/jpeg';
       final parts = mimeType.split('/');
       request.files.add(
-        http.MultipartFile.fromBytes(
+        await http.MultipartFile.fromPath(
           'file',
-          await file.readAsBytes(),
-          filename: file.path.split(Platform.pathSeparator).last,
+          file.path,
+          filename: fileName,
           contentType: MediaType(parts[0], parts[1]),
         ),
       );
@@ -147,9 +148,10 @@ class MemberApiService {
       if (resp.statusCode == 200) {
         final jsonData = json.decode(resp.body) as Map<String, dynamic>;
         final rel = jsonData['url'] as String? ?? '';
-        // If server returned relative URL (starting with /), prepend origin
-        if (rel.startsWith('/')) return origin + rel;
-        return rel;
+        // Keep backend URL portable: store relative path in DB and resolve it
+        // on the client using the runtime API base URL.
+        if (rel.isNotEmpty) return rel;
+        throw Exception('Upload response missing URL');
       } else {
         throw Exception('Upload failed ${resp.statusCode}: ${resp.body}');
       }
@@ -190,6 +192,34 @@ class MemberApiService {
         print('MemberApiService.update -> ERROR: $e');
       } catch (_) {}
       throw Exception('Không thể cập nhật thành viên: $e');
+    }
+  }
+
+  // ── PUT: Cập nhật vai trò thành viên (Phân quyền editor/member) ───────────
+  static Future<void> updateRole(String id, String role) async {
+    try {
+      final url = '$baseUrl/$id/role';
+      try {
+        // ignore: avoid_print
+        print('MemberApiService.updateRole -> PUT $url body: role=$role');
+      } catch (_) {}
+      final response = await http
+          .put(
+            Uri.parse(url),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'role': role}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        throw Exception('API Error ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      try {
+        // ignore: avoid_print
+        print('MemberApiService.updateRole -> ERROR: $e');
+      } catch (_) {}
+      throw Exception('Không thể cập nhật vai trò: $e');
     }
   }
 

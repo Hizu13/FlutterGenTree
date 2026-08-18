@@ -7,8 +7,10 @@ import '../widgets/member_summary_card.dart';
 import 'add_member_screen.dart';
 import 'member_profile_screen.dart';
 import '../repositories/member_repository.dart';
-import '../../../config/api_config.dart';
-
+import '../../family/models/family_model.dart';
+import '../../family/services/family_api_service.dart';
+import '../../auth/models/auth_request_model.dart';
+import '../../auth/services/auth_service.dart';
 
 /// Màn hình Danh Sách Thành Viên.
 /// Thiết kế theo Figma: AppBar nâu đậm, ô tìm kiếm, bộ lọc Đời/Giới tính/Địa chỉ,
@@ -30,6 +32,8 @@ class _MemberListScreenState extends State<MemberListScreen> {
 
 // ── Dữ liệu từ Backend API ──────────────────────────────────────────────
   List<MemberModel> _allMembers = [];
+  FamilyModel? _currentFamily;
+  UserModel? _currentUser;
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -39,15 +43,69 @@ class _MemberListScreenState extends State<MemberListScreen> {
     _loadMembers();
   }
 
+  /// Quyền hạn của người dùng hiện tại trong gia phả này
+  bool get _isAdmin {
+    final famRole = _currentFamily?.userRole;
+    final userRole = _currentUser?.role;
+    final String role = (famRole ?? userRole ?? 'member').toLowerCase();
+    if (role == 'admin' || role == 'owner') return true;
+    if (_currentFamily?.ownerId != null && _currentUser?.id != null && _currentFamily!.ownerId == _currentUser!.id) {
+      return true;
+    }
+    return false;
+  }
+
+  bool get _isEditor {
+    final famRole = _currentFamily?.userRole;
+    final userRole = _currentUser?.role;
+    final String role = (famRole ?? userRole ?? 'member').toLowerCase();
+    return role == 'editor';
+  }
+
+  bool get _canManage => _isAdmin || _isEditor;
+
+  /// Kiểm tra xem thành viên này có phải là bản thân tài khoản đang đăng nhập không
+  bool _checkIsSelf(MemberModel member) {
+    if (_currentUser == null) return false;
+    // 1. Khớp qua user_id
+    if (member.userId != null && _currentUser!.id != null && member.userId == _currentUser!.id) {
+      return true;
+    }
+    // 2. Khớp qua CCCD / CMND
+    if (member.identityCard != null && _currentUser!.cccd != null) {
+      final mCccd = member.identityCard!.trim();
+      final uCccd = _currentUser!.cccd!.trim();
+      if (mCccd.isNotEmpty && uCccd.isNotEmpty && mCccd == uCccd) {
+        return true;
+      }
+    }
+    // 3. Khớp qua Số điện thoại / Username
+    if (member.phoneNumber != null && _currentUser!.username.isNotEmpty) {
+      final mPhone = member.phoneNumber!.replaceAll(RegExp(r'\D'), '');
+      final uName = _currentUser!.username.replaceAll(RegExp(r'\D'), '');
+      if (mPhone.isNotEmpty && uName.isNotEmpty && mPhone == uName) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<void> _loadMembers() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
-      final data = await MemberRepository.fetchAll(forceRefresh: true);
+      final family = await FamilyApiService.getCurrentFamily();
+      final user = await AuthService.getSavedUser();
+      final data = await MemberRepository.fetchAll(
+        forceRefresh: true,
+        familyId: family?.id,
+      );
       if (mounted) {
         setState(() {
+          _currentFamily = family;
+          _currentUser = user;
           _allMembers = data;
           _isLoading = false;
         });
@@ -174,8 +232,11 @@ class _MemberListScreenState extends State<MemberListScreen> {
                               itemCount: filtered.length,
                               itemBuilder: (context, index) {
                                 final member = filtered[index];
+                                final bool isSelf = _checkIsSelf(member);
                                 return MemberCard(
                                   member: member,
+                                  canManage: _canManage,
+                                  isSelf: isSelf,
                                   onTap: () => _onMemberTap(member),
                                   onMoreTap: () => _showMemberOptions(member),
                                 );
@@ -206,14 +267,16 @@ class _MemberListScreenState extends State<MemberListScreen> {
           ),
         ),
 
-        // ── FAB Thêm mới ──────────────────────────────────────────────────────
-        floatingActionButton: FloatingActionButton(
-          onPressed: _onAddMember,
-          backgroundColor: AppColors.primaryGold,
-          foregroundColor: Colors.white,
-          elevation: 4,
-          child: const Icon(Icons.add_rounded, size: 28),
-        ),
+        // ── FAB Thêm mới (Chỉ hiển thị cho Admin và Editor) ────────────────────
+        floatingActionButton: _canManage
+            ? FloatingActionButton(
+                onPressed: _onAddMember,
+                backgroundColor: AppColors.primaryGold,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                child: const Icon(Icons.add_rounded, size: 28),
+              )
+            : null,
       ),
     );
   }
@@ -259,11 +322,11 @@ class _MemberListScreenState extends State<MemberListScreen> {
           const SizedBox(width: 12),
 
           // Tiêu đề
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Thành viên',
                   style: TextStyle(
                     fontSize: 20,
@@ -272,30 +335,35 @@ class _MemberListScreenState extends State<MemberListScreen> {
                   ),
                 ),
                 Text(
-                  'Quản lý thành viên trong gia phả',
-                  style: TextStyle(
+                  _currentFamily != null
+                      ? 'Gia phả: ${_currentFamily!.name}'
+                      : 'Quản lý thành viên trong gia phả',
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Colors.white70,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
 
-          // Nút Thêm mới
-          GestureDetector(
-            onTap: _onAddMember,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white30),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.add_rounded, color: Colors.white, size: 16),
-                  SizedBox(width: 4),
+          // Nút Thêm mới (Chỉ hiển thị cho Admin và Editor)
+          if (_canManage)
+            GestureDetector(
+              onTap: _onAddMember,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white30),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.add_rounded, color: Colors.white, size: 16),
+                    SizedBox(width: 4),
                   Text(
                     'Thêm mới',
                     style: TextStyle(
@@ -514,6 +582,7 @@ class _MemberListScreenState extends State<MemberListScreen> {
         builder: (_) => MemberProfileScreen(
           member: member,
           allMembers: _allMembers,
+          canManage: _canManage,
           onUpdated: (updated) {
             setState(() {
               final idx = _allMembers.indexWhere((m) => m.id == updated.id);
@@ -585,14 +654,16 @@ class _MemberListScreenState extends State<MemberListScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-builder: (_) => _MemberOptionsSheet(
+      builder: (sheetCtx) => _MemberOptionsSheet(
         member: member,
+        isAdmin: _isAdmin,
+        isEditor: _isEditor,
         onViewProfile: () {
-          Navigator.pop(context);
+          Navigator.pop(sheetCtx);
           _onMemberTap(member);
         },
         onEdit: () {
-          Navigator.pop(context);
+          Navigator.pop(sheetCtx);
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => AddMemberScreen(
@@ -644,38 +715,152 @@ builder: (_) => _MemberOptionsSheet(
             ),
           );
         },
-        onDelete: () async {
-          Navigator.pop(context);
-          try {
-            await MemberRepository.deleteMember(member.id!);
-            if (mounted) {
-              setState(() {
-                _allMembers.removeWhere((m) => m.id == member.id);
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Đã xóa thành viên: ${member.fullName}'),
-                  backgroundColor: AppColors.error,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+        onToggleRole: () async {
+          Navigator.pop(sheetCtx);
+          final bool isCurrentlyEditor = member.role == 'editor';
+          final String newRole = isCurrentlyEditor ? 'member' : 'editor';
+          final String actionText = isCurrentlyEditor ? 'hủy quyền Editor' : 'cấp quyền Editor';
+
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(
+                    isCurrentlyEditor ? Icons.remove_moderator_rounded : Icons.admin_panel_settings_rounded,
+                    color: isCurrentlyEditor ? AppColors.badgeRed : AppColors.editorRoleText,
+                    size: 24,
                   ),
-                  duration: const Duration(seconds: 2),
+                  const SizedBox(width: 8),
+                  Text(
+                    isCurrentlyEditor ? 'Hủy quyền Editor' : 'Phân quyền Editor',
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: Text(
+                'Bạn có chắc chắn muốn $actionText cho thành viên "${member.fullName}" không?',
+                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-              );
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isCurrentlyEditor ? AppColors.badgeRed : AppColors.editorRoleText,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text(isCurrentlyEditor ? 'Hủy quyền' : 'Cấp quyền'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirm == true && mounted) {
+            try {
+              await MemberRepository.updateRole(member.id!, newRole);
+              if (mounted) {
+                setState(() {
+                  final idx = _allMembers.indexWhere((m) => m.id == member.id);
+                  if (idx != -1) {
+                    _allMembers[idx] = member.copyWith(role: newRole);
+                  }
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Đã $actionText cho ${member.fullName} thành công'),
+                    backgroundColor: isCurrentlyEditor ? AppColors.primaryDark : AppColors.success,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi phân quyền: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
             }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Lỗi xóa: $e'),
-                  backgroundColor: AppColors.error,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+          }
+        },
+        onDelete: () async {
+          Navigator.pop(sheetCtx);
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.delete_forever_rounded, color: AppColors.error, size: 24),
+                  SizedBox(width: 8),
+                  Text('Xác nhận xóa', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Text(
+                'Bạn có chắc chắn muốn xóa thành viên "${member.fullName}" khỏi gia phả? Hành động này không thể hoàn tác.',
+                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-              );
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Xóa vĩnh viễn'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirm == true && mounted) {
+            try {
+              await MemberRepository.deleteMember(member.id!);
+              if (mounted) {
+                setState(() {
+                  _allMembers.removeWhere((m) => m.id == member.id);
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Đã xóa thành viên: ${member.fullName}'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi xóa: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
             }
           }
         },
@@ -699,64 +884,35 @@ builder: (_) => _MemberOptionsSheet(
   void _showFilterBottomSheet() {
     // TODO: Advanced filter bottom sheet
   }
-  void _showApiSettings(BuildContext context) async {
-    final controller = TextEditingController(text: ApiConfig.baseUrl);
-    final result = await showDialog<String?>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('API Base URL'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'http://<IP>:8000/api/flutter/members',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (result != null && result.isNotEmpty) {
-      await ApiConfig.setRuntimeBaseUrl(result);
-      // Clear repository cache and reload members using the new base URL
-      try {
-        MemberRepository.invalidateCache();
-        await _loadMembers();
-      } catch (_) {}
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('API_BASE_URL set to $result')));
-        setState(() {});
-      }
-    }
-  }
 }
 
 // =============================================================================
-// BOTTOM SHEET: Tùy chọn thành viên (Xem / Sửa / Xóa)
+// BOTTOM SHEET: Tùy chọn thành viên (Phân quyền / Xem / Sửa / Xóa)
 // =============================================================================
 class _MemberOptionsSheet extends StatelessWidget {
   final MemberModel member;
+  final bool isAdmin;
+  final bool isEditor;
   final VoidCallback? onViewProfile;
   final VoidCallback? onEdit;
+  final VoidCallback? onToggleRole;
   final VoidCallback? onDelete;
 
   const _MemberOptionsSheet({
     required this.member,
+    this.isAdmin = false,
+    this.isEditor = false,
     this.onViewProfile,
     this.onEdit,
+    this.onToggleRole,
     this.onDelete,
   });
+
   @override
   Widget build(BuildContext context) {
+    final bool isMemberAdmin = member.role == 'admin' || member.role == 'owner';
+    final bool isMemberEditor = member.role == 'editor';
+
     return Container(
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -777,21 +933,52 @@ class _MemberOptionsSheet extends StatelessWidget {
             ),
           ),
 
-          // Tên thành viên
+          // Tên thành viên + Role tag
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              member.fullName,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    member.fullName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (isMemberAdmin) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.adminRoleBg,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Admin', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.adminRoleText)),
+                  ),
+                ] else if (isMemberEditor) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.editorRoleBg,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Editor', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.editorRoleText)),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 4),
           const Divider(color: AppColors.divider),
 
+          // 1. Xem hồ sơ
           _buildOption(
             context,
             icon: Icons.person_outline_rounded,
@@ -799,13 +986,38 @@ class _MemberOptionsSheet extends StatelessWidget {
             color: AppColors.textPrimary,
             onTap: onViewProfile,
           ),
-          _buildOption(
-            context,
-            icon: Icons.edit_outlined,
-            label: 'Chỉnh sửa thông tin',
-            color: AppColors.primaryMedium,
-            onTap: onEdit,
-          ),
+
+          // 2. Chỉnh sửa thông tin (Admin & Editor)
+          if (isAdmin || isEditor)
+            _buildOption(
+              context,
+              icon: Icons.edit_outlined,
+              label: 'Chỉnh sửa thông tin',
+              color: AppColors.primaryMedium,
+              onTap: onEdit,
+            ),
+
+          // 3. Phân quyền / Hủy quyền Editor (Chỉ Admin mới có quyền)
+          if (isAdmin && !isMemberAdmin) ...[
+            if (isMemberEditor)
+              _buildOption(
+                context,
+                icon: Icons.remove_moderator_outlined,
+                label: 'Hủy quyền Editor (Về thành viên thường)',
+                color: AppColors.primaryMedium,
+                onTap: onToggleRole,
+              )
+            else
+              _buildOption(
+                context,
+                icon: Icons.admin_panel_settings_outlined,
+                label: 'Phân quyền Editor (Cấp quyền chỉnh sửa)',
+                color: AppColors.editorRoleText,
+                onTap: onToggleRole,
+              ),
+          ],
+
+          // 4. Xem trong sơ đồ gia phả
           _buildOption(
             context,
             icon: Icons.account_tree_outlined,
@@ -813,26 +1025,30 @@ class _MemberOptionsSheet extends StatelessWidget {
             color: AppColors.primaryGold,
             onTap: () => Navigator.pop(context),
           ),
-          const Divider(color: AppColors.divider, height: 1),
-_buildOption(
-            context,
-            icon: Icons.delete_outline_rounded,
-            label: 'Xóa thành viên',
-            color: AppColors.error,
-            onTap: onDelete,
-          ),
+
+          // 5. Xóa thành viên (Admin & Editor)
+          if (isAdmin || isEditor) ...[
+            const Divider(color: AppColors.divider, height: 1),
+            _buildOption(
+              context,
+              icon: Icons.delete_outline_rounded,
+              label: 'Xóa thành viên khỏi gia phả',
+              color: AppColors.error,
+              onTap: onDelete,
+            ),
+          ],
           const SizedBox(height: 12),
         ],
       ),
     );
   }
 
- Widget _buildOption(
-    BuildContext context, {    required IconData icon,
+  Widget _buildOption(
+    BuildContext context, {
+    required IconData icon,
     required String label,
     required Color color,
     VoidCallback? onTap,
-
   }) {
     return InkWell(
       onTap: onTap ?? () => Navigator.pop(context),
@@ -842,12 +1058,14 @@ _buildOption(
           children: [
             Icon(icon, size: 20, color: color),
             const SizedBox(width: 14),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: color == AppColors.error ? color : AppColors.textPrimary,
-                fontWeight: color == AppColors.error ? FontWeight.w500 : FontWeight.w400,
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: color == AppColors.error ? color : AppColors.textPrimary,
+                  fontWeight: color == AppColors.error ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
           ],

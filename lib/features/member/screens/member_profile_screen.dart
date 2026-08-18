@@ -10,6 +10,7 @@ import 'add_member_screen.dart';
 class MemberProfileScreen extends StatefulWidget {
   final MemberModel member;
   final List<MemberModel> allMembers;
+  final bool canManage;
   final ValueChanged<MemberModel>? onUpdated;
   final ValueChanged<MemberModel>? onMemberAdded;
 
@@ -17,6 +18,7 @@ class MemberProfileScreen extends StatefulWidget {
     super.key,
     required this.member,
     required this.allMembers,
+    this.canManage = false,
     this.onUpdated,
     this.onMemberAdded,
   });
@@ -207,67 +209,69 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
               ),
             ),
           ),
-          GestureDetector(
-            onTap: _onEdit,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white30),
+          if (widget.canManage) ...[
+            GestureDetector(
+              onTap: _onEdit,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white30),
+                    ),
+                    child: const Icon(
+                      Icons.edit_outlined,
+                      color: Colors.white,
+                      size: 17,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.edit_outlined,
-                    color: Colors.white,
-                    size: 17,
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Chỉnh sửa',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'Chỉnh sửa',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: _onAdd,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white30),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: _onAdd,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white30),
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    color: Colors.white,
-                    size: 20,
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Thêm',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'Thêm',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
