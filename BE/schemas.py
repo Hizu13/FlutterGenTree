@@ -116,3 +116,50 @@ class MemberFlutterCreate(BaseModel):
     generation: Optional[int] = None
     identityCard: Optional[str] = None
     familyId: Optional[int] = None
+
+
+class UserLoginRequest(BaseModel):
+    """Schema nhận thông tin đăng nhập"""
+    username: str
+    password: str
+
+
+class UserRegisterRequest(BaseModel):
+    """Schema nhận thông tin đăng ký tài khoản mới"""
+    username: str
+    password: str
+    first_name: str
+    last_name: Optional[str] = None
+    gender: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    place_of_birth: Optional[str] = None
+    email: EmailStr
+    cccd: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: Optional[str] = "member"
+
+
+class UserRead(BaseModel):
+    """Schema trả về thông tin người dùng an toàn (không lộ mật khẩu)"""
+    id: int
+    username: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    gender: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    place_of_birth: Optional[str] = None
+    email: str
+    cccd: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    """Schema phản hồi khi đăng nhập thành công"""
+    access_token: str
+    token_type: str = "bearer"
+    user: Optional[UserRead] = None
+
