@@ -841,26 +841,40 @@ class _MemberListScreenState extends State<MemberListScreen> {
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Đã xóa thành viên: ${member.fullName}'),
-                    backgroundColor: AppColors.error,
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text('Đã xóa thành công thành viên: ${member.fullName}')),
+                      ],
+                    ),
+                    backgroundColor: AppColors.success,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    duration: const Duration(seconds: 2),
+                    duration: const Duration(seconds: 3),
                   ),
                 );
               }
             } catch (e) {
               if (mounted) {
+                final err = e.toString().replaceAll('Exception: ', '');
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Lỗi xóa: $e'),
-                    backgroundColor: AppColors.error,
+                    content: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text('Lỗi xóa: $err')),
+                      ],
+                    ),                    backgroundColor: AppColors.error,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
+                    duration: const Duration(seconds: 4),
+
                   ),
                 );
               }
