@@ -18,36 +18,45 @@ class MemberSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
         color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border(
           top: BorderSide(color: AppColors.border, width: 1),
         ),
+        boxShadow: const [	
+          BoxShadow(	
+            color: Color(0x11000000),	
+            blurRadius: 6,	
+            offset: Offset(0, 2),	
+          ),	
+        ],
       ),
       child: Row(
         children: [
           // Tổng số thành viên
           const Icon(
             Icons.people_rounded,
-            size: 18,
+            size: 22,
             color: AppColors.primaryMedium,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 'Tổng số thành viên',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               Text(
                 '$totalCount người',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                 ),
@@ -86,15 +95,15 @@ class MemberSummaryCard extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 12,
             color: color,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
         Text(
           '$count',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: color,
           ),

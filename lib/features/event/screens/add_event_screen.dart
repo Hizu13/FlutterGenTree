@@ -4,9 +4,14 @@ import '../models/event_model.dart';
 import '../widgets/event_form.dart';
 
 class AddEventScreen extends StatelessWidget {
+  final bool canManage;
   final Function(EventModel event)? onAddEvent;
 
-  const AddEventScreen({super.key, this.onAddEvent});
+  const AddEventScreen({
+    super.key,
+    this.canManage = false,
+    this.onAddEvent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +29,7 @@ class AddEventScreen extends StatelessWidget {
         ),
       ),
       body: EventForm(
-        submitButtonText: 'Yêu cầu phê duyệt',
+        canManage: canManage,
         onSubmit: (newEvent) {
           onAddEvent?.call(newEvent);
           Navigator.pop(context);

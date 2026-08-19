@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../../config/app_color.dart';
+import '../../auth/models/auth_request_model.dart';
+import '../../auth/services/auth_service.dart';
+import '../../family/models/family_model.dart';
+import '../../family/services/family_api_service.dart';
 import '../models/event_model.dart';
-import '../services/event_service.dart';
+import '../services/event_api_service.dart';
 import '../widgets/delete_event_dialog.dart';
-import '../widgets/event_calendar.dart';
 import '../widgets/event_card.dart';
 import '../widgets/event_tab_bar.dart';
-
-// Import 2 màn hình Form Thêm & Sửa
 import 'add_event_screen.dart';
 import 'edit_event_screen.dart';
 
 class EventScreen extends StatefulWidget {
   final List<EventModel>? events;
+  final int? familyId;
   final Function(EventModel)? onAddEvent;
   final Function(EventModel)? onEditEvent;
   final Function(String)? onDeleteEvent;
@@ -21,6 +23,7 @@ class EventScreen extends StatefulWidget {
   const EventScreen({
     super.key,
     this.events,
+    this.familyId,
     this.onAddEvent,
     this.onEditEvent,
     this.onDeleteEvent,
@@ -32,31 +35,98 @@ class EventScreen extends StatefulWidget {
 }
 
 class _EventScreenState extends State<EventScreen> {
-  int _selectedTab = 2;
-  int _selectedDay = 0;
+  int _selectedTab = 2; // 0: Trong 7 ngày tới, 1: Tháng này, 2: Tất cả
+  bool _isLoading = false;
+  int? _activeFamilyId;
 
-  late List<EventModel> _currentEvents;
+  UserModel? _currentUser;
+  FamilyModel? _currentFamily;
+  List<EventModel> _currentEvents = [];
 
-  final List<String> _tabLabels = ['Tháng này', 'Sắp tới', 'Tất cả'];
-  final List<String> _weekdays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-  final List<int> _days = [20, 21, 22, 23, 24, 25, 26];
+  final List<String> _tabLabels = ['7 ngày tới', 'Tháng này', 'Tất cả'];
+
+  // ==================== PHÂN QUYỀN TRƯỞNG HỌ & EDITOR ====================
+  bool get _isAdmin {
+    final famRole = _currentFamily?.userRole;
+    final userRole = _currentUser?.role;
+    final String role = (famRole ?? userRole ?? 'member').toLowerCase();
+    if (role == 'admin' || role == 'owner') return true;
+    if (_currentFamily?.ownerId != null &&
+        _currentUser?.id != null &&
+        _currentFamily!.ownerId == _currentUser!.id) {
+      return true;
+    }
+    return false;
+  }
+
+  bool get _isEditor {
+    final famRole = _currentFamily?.userRole;
+    final userRole = _currentUser?.role;
+    final String role = (famRole ?? userRole ?? 'member').toLowerCase();
+    return role == 'editor';
+  }
+
+  /// Chỉ Trưởng họ (Admin/Owner) hoặc Editor mới có quyền Thêm, Sửa, Xóa sự kiện
+  bool get _canManage => _isAdmin || _isEditor;
 
   @override
   void initState() {
     super.initState();
-    _currentEvents = List.from(
-      (widget.events != null && widget.events!.isNotEmpty)
-          ? widget.events!
-          : EventModel.sampleEvents,
-    );
+    _activeFamilyId = widget.familyId;
+    _currentEvents = widget.events != null ? List.from(widget.events!) : [];
+    _loadUserAndFamilyInfo();
+    _loadEvents();
+  }
+
+  Future<void> _loadUserAndFamilyInfo() async {
+    final user = await AuthService.getSavedUser();
+    final family = await FamilyApiService.getCurrentFamily();
+    if (mounted) {
+      setState(() {
+        _currentUser = user;
+        _currentFamily = family;
+        if (_activeFamilyId == null && family != null) {
+          _activeFamilyId = family.id;
+        }
+      });
+    }
   }
 
   @override
   void didUpdateWidget(covariant EventScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.events != oldWidget.events && widget.events != null) {
+    if (widget.familyId != oldWidget.familyId) {
+      _activeFamilyId = widget.familyId;
+      _loadUserAndFamilyInfo();
+      _loadEvents();
+    } else if (widget.events != oldWidget.events && widget.events != null) {
       setState(() {
         _currentEvents = List.from(widget.events!);
+      });
+    }
+  }
+
+  Future<void> _loadEvents() async {
+    setState(() => _isLoading = true);
+
+    // Nếu chưa có familyId, lấy từ active family cache
+    if (_activeFamilyId == null) {
+      final family = await FamilyApiService.getCurrentFamily();
+      if (family != null) {
+        _activeFamilyId = family.id;
+        _currentFamily = family;
+      }
+    }
+
+    final events = await EventApiService.getEvents(
+      familyId: _activeFamilyId,
+      autoSync: true,
+    );
+
+    if (mounted) {
+      setState(() {
+        _currentEvents = events;
+        _isLoading = false;
       });
     }
   }
@@ -75,12 +145,21 @@ class _EventScreenState extends State<EventScreen> {
               const SizedBox(height: 12),
               _buildTabBar(),
               const SizedBox(height: 12),
-              _buildWeekCalendar(),
-              const SizedBox(height: 12),
-              Expanded(child: _buildEventList(filteredEvents)),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: AppColors.primaryMedium),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadEvents,
+                        color: AppColors.primaryMedium,
+                        child: _buildEventList(filteredEvents),
+                      ),
+              ),
             ],
           ),
         ),
+        // Nút thêm sự kiện / yêu cầu phê duyệt sự kiện
         Positioned(right: 20, bottom: 24, child: _buildAddButton()),
       ],
     );
@@ -126,7 +205,7 @@ class _EventScreenState extends State<EventScreen> {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -138,16 +217,16 @@ class _EventScreenState extends State<EventScreen> {
                 ),
                 const SizedBox(width: 10),
                 GestureDetector(
-                  onTap: _handleMoreClick,
+                  onTap: _handleSyncClick,
                   child: Container(
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
-                      Icons.more_horiz_rounded,
+                      Icons.sync_rounded,
                       color: Colors.white,
                       size: 22,
                     ),
@@ -167,17 +246,7 @@ class _EventScreenState extends State<EventScreen> {
       selectedIndex: _selectedTab,
       onTabSelected: (index) => setState(() {
         _selectedTab = index;
-        _selectedDay = 0;
       }),
-    );
-  }
-
-  Widget _buildWeekCalendar() {
-    return EventCalendar(
-      weekdays: _weekdays,
-      days: _days,
-      selectedDay: _selectedDay,
-      onDaySelected: (index) => setState(() => _selectedDay = index),
     );
   }
 
@@ -204,43 +273,63 @@ class _EventScreenState extends State<EventScreen> {
   }
 
   List<EventModel> _getFilteredEvents() {
-    if (_selectedTab == 2) {
-      return _currentEvents;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (_selectedTab) {
+      case 0: // Trong 7 ngày tới
+        final next7Days = today.add(const Duration(days: 7, hours: 23, minutes: 59, seconds: 59));
+        return _currentEvents.where((e) {
+          final date = e.solarDate ?? e.date;
+          final d = DateTime(date.year, date.month, date.day);
+          return !d.isBefore(today) && !d.isAfter(next7Days);
+        }).toList();
+
+      case 1: // Tháng này
+        return _currentEvents.where((e) {
+          final date = e.solarDate ?? e.date;
+          return date.month == now.month && date.year == now.year;
+        }).toList();
+
+      case 2: // Tất cả
+      default:
+        return _currentEvents;
     }
-    return EventService.getFilteredEvents(
-      _currentEvents,
-      _selectedTab,
-      _selectedTab < 2 ? _days[_selectedDay] : null,
-    );
   }
 
   Widget _buildEventList(List<EventModel> events) {
     if (events.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              size: 48,
-              color: AppColors.textMuted.withOpacity(0.5),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Không có sự kiện trong ngày đã chọn.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-            ),
-          ],
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.calendar_today_rounded,
+                size: 48,
+                color: AppColors.textMuted.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Không có sự kiện trong danh mục đã chọn.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
       itemCount: events.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) => EventCard(
         event: events[index],
+        canManage: _canManage,
+        onView: (e) => _handleViewEvent(e),
         onEdit: (e) => _handleEditEvent(e),
         onDelete: (e) => _handleDeleteEvent(e),
       ),
@@ -249,16 +338,117 @@ class _EventScreenState extends State<EventScreen> {
 
   // ==================== HANDLERS ====================
 
-  // 1. Thêm sự kiện
+  // 0. Xem chi tiết sự kiện
+  void _handleViewEvent(EventModel event) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  event.isBirthday
+                      ? Icons.cake_rounded
+                      : (event.isDeathAnniversary ? Icons.temple_buddhist_rounded : Icons.event_available_rounded),
+                  color: AppColors.primary,
+                  size: 26,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    event.title,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              children: [
+                const Icon(Icons.access_time_rounded, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 8),
+                Text(event.time, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_outlined, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 8),
+                Expanded(child: Text(event.dateRange, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary))),
+              ],
+            ),
+            if (event.note.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(event.note, style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary)),
+              ),
+            ],
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+    widget.onViewEvent?.call(event);
+  }
+
+  // 1. Thêm sự kiện (Admin/Editor thêm trực tiếp, Member gửi yêu cầu phê duyệt)
   void _handleAddEvent() {
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => AddEventScreen(
-          onAddEvent: (newEvent) {
-            setState(() {
-              _currentEvents.add(newEvent);
-            });
+          canManage: _canManage,
+          onAddEvent: (newEvent) async {
+            final toCreate = newEvent.copyWith(familyId: _activeFamilyId);
+            final created = await EventApiService.createEvent(toCreate);
+            if (mounted) {
+              if (created != null) {
+                setState(() {
+                  _currentEvents.insert(0, created);
+                });
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _canManage
+                          ? 'Đã thêm sự kiện thành công'
+                          : 'Đã gửi yêu cầu phê duyệt sự kiện thành công',
+                    ),
+                  ),
+                );
+              } else {
+                setState(() {
+                  _currentEvents.insert(0, toCreate);
+                });
+              }
+            }
             widget.onAddEvent?.call(newEvent);
           },
         ),
@@ -266,22 +456,30 @@ class _EventScreenState extends State<EventScreen> {
     );
   }
 
-  // 2. Chỉnh sửa sự kiện
+  // 2. Chỉnh sửa sự kiện (Admin & Editor)
   void _handleEditEvent(EventModel event) {
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EditEventScreen(
           event: event,
-          onEditEvent: (updatedEvent) {
-            setState(() {
-              final index = _currentEvents.indexWhere(
-                (e) => e.id == updatedEvent.id,
+          onEditEvent: (updatedEvent) async {
+            final toUpdate = updatedEvent.copyWith(familyId: _activeFamilyId);
+            final result = await EventApiService.updateEvent(toUpdate);
+            if (mounted) {
+              setState(() {
+                final index = _currentEvents.indexWhere(
+                  (e) => e.id == updatedEvent.id,
+                );
+                if (index != -1) {
+                  _currentEvents[index] = result ?? updatedEvent;
+                }
+              });
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Đã cập nhật sự kiện')),
               );
-              if (index != -1) {
-                _currentEvents[index] = updatedEvent;
-              }
-            });
+            }
             widget.onEditEvent?.call(updatedEvent);
           },
         ),
@@ -289,24 +487,49 @@ class _EventScreenState extends State<EventScreen> {
     );
   }
 
-  // 3. Xóa sự kiện
+  // 3. Xóa sự kiện (Admin & Editor)
   void _handleDeleteEvent(EventModel event) {
     DeleteEventDialog.show(
       context,
       event: event,
-      onConfirm: () {
-        setState(() {
-          _currentEvents.removeWhere((e) => e.id == event.id);
-        });
+      onConfirm: () async {
+        final success = await EventApiService.deleteEvent(event.id);
+        if (mounted) {
+          setState(() {
+            _currentEvents.removeWhere((e) => e.id == event.id);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                success ? 'Đã xóa sự kiện' : 'Đã xóa sự kiện khỏi danh sách',
+              ),
+            ),
+          );
+        }
         widget.onDeleteEvent?.call(event.id);
       },
     );
   }
 
-  // ==================== THÔNG BÁO ====================
+  // ==================== THÔNG BÁO & ĐỒNG BỘ ====================
+
+  // Xử lý khi nhấn nút Sync
+  Future<void> _handleSyncClick() async {
+    if (_activeFamilyId == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Đang đồng bộ sinh nhật & ngày giỗ từ cơ sở dữ liệu...')),
+    );
+    await _loadEvents();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã đồng bộ xong sự kiện')),
+      );
+    }
+  }
 
   // Xử lý khi nhấn vào nút chuông thông báo
   void _handleNotificationClick() {
+    final upcoming = _currentEvents.take(3).toList();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -320,7 +543,6 @@ class _EventScreenState extends State<EventScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thanh gạch ngang mỏng phía trên BottomSheet
             Center(
               child: Container(
                 width: 40,
@@ -336,7 +558,7 @@ class _EventScreenState extends State<EventScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Thông báo sự kiện',
+                  'Thông báo sự kiện sắp tới',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -352,30 +574,31 @@ class _EventScreenState extends State<EventScreen> {
             const Divider(),
             const SizedBox(height: 8),
 
-            // THÔNG BÁO 1
-            _buildNotificationItem(
-              title: 'Sắp diễn ra: Giỗ Tổ Ông Nguyễn Văn A',
-              subtitle:
-                  'Sự kiện sẽ diễn ra vào ngày 12/02/2026 (15/01 Âm lịch)',
-              time: '10 phút trước',
-              icon: Icons.event_available_rounded,
-            ),
-            const SizedBox(height: 10),
-
-            // THÔNG BÁO 2
-            _buildNotificationItem(
-              title: 'Nhắc nhở: Lễ tảo mộ Xuân',
-              subtitle: 'Chuẩn bị hương hoa và lễ vật cho ngày 20/02/2026',
-              time: '1 giờ trước',
-              icon: Icons.notifications_active_rounded,
-            ),
+            if (upcoming.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Text('Không có sự kiện sắp tới', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+              )
+            else
+              ...upcoming.map((evt) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _buildNotificationItem(
+                      title: 'Sắp diễn ra: ${evt.title}',
+                      subtitle: '${evt.dateRange} • ${evt.time}',
+                      time: evt.isBirthday ? 'Sinh nhật' : (evt.isDeathAnniversary ? 'Ngày giỗ' : 'Sự kiện'),
+                      icon: evt.isBirthday
+                          ? Icons.cake_rounded
+                          : (evt.isDeathAnniversary ? Icons.temple_buddhist_rounded : Icons.notifications_active_rounded),
+                    ),
+                  )),
           ],
         ),
       ),
     );
   }
 
-  // Widget vẽ từng item thông báo
   Widget _buildNotificationItem({
     required String title,
     required String subtitle,
@@ -395,7 +618,7 @@ class _EventScreenState extends State<EventScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.primaryGold.withOpacity(0.15),
+              color: AppColors.primaryGold.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: AppColors.primaryGold, size: 20),
@@ -435,11 +658,5 @@ class _EventScreenState extends State<EventScreen> {
         ],
       ),
     );
-  }
-
-  void _handleMoreClick() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Tùy chọn khác')));
   }
 }
