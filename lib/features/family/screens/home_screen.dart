@@ -14,6 +14,8 @@ import '../models/family_model.dart';
 import '../services/family_api_service.dart';
 import '../../admin/screens/admin_dashboard_screen.dart';
 import '../../admin/services/admin_api_service.dart';
+import '../../face_recognition/screens/face_scanner_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<FamilyModel> _myFamilies = [];
   String _currentBranch = 'Họ nội';
   int _totalAdminPendingCount = 0;
+  final GlobalKey<FaceScannerScreenState> _faceScannerKey = GlobalKey<FaceScannerScreenState>();
+
 
   @override
   void initState() {
@@ -200,6 +204,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabSelected(int index) {
+    if (index == 2 && _currentBottomIndex == 2) {
+      _faceScannerKey.currentState?.captureAndScan();
+      return;
+    }
     setState(() {
       _currentBottomIndex = index;
     });
@@ -222,8 +230,14 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const MemberListScreen();
       case 2:
-        return _buildPlaceholderScreen('Nhận diện AI');
-      case 3:
+        return FaceScannerScreen(
+          key: _faceScannerKey,
+          onBack: () {
+            setState(() {
+              _currentBottomIndex = 0;
+            });
+          },
+        );      case 3:
         return EventScreen(events: _events);
       case 4:
         return const FinanceScreen();
@@ -2122,28 +2136,50 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedFontSize: 11,
         elevation: 0,
         onTap: _onTabSelected,
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Icon(Icons.home_rounded),
             activeIcon: Icon(Icons.home_rounded),
             label: 'Trang chủ',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.people_outline_rounded),
             activeIcon: Icon(Icons.people_rounded),
             label: 'Thành viên',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt_outlined),
-            activeIcon: Icon(Icons.camera_alt_rounded),
-            label: 'Nhận diện AI',
+            icon: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            activeIcon: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: AppColors.primaryExtraDark,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: Color(0xFFFFD580),
+                size: 18,
+              ),
+            ),
+            label: 'Nhận diện',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today_outlined),
             activeIcon: Icon(Icons.calendar_today_rounded),
             label: 'Sự kiện',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet_outlined),
             activeIcon: Icon(Icons.account_balance_wallet_rounded),
             label: 'Thu chi',

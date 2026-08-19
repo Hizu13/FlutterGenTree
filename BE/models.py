@@ -195,3 +195,28 @@ class Transaction(Base):
     family = relationship("Family", back_populates="transactions")
     member = relationship("Member", foreign_keys=[member_id])
 
+
+# ==============================================================================
+# 7. FACE RECOGNITION MODULE: ĐẶC TRƯNG KHUÔN MẶT AI (FACE_EMBEDDINGS)
+# ==============================================================================
+class FaceEmbedding(Base):
+    """
+    Model lưu trữ véc-tơ đặc trưng khuôn mặt (Face Embedding) và tọa độ nhận diện.
+    - `embedding`: Dãy 512 số thực float32 lưu dưới dạng JSON/Text.
+    - `face_box`: Tọa độ bounding box [x1, y1, x2, y2].
+    - `is_primary`: Đánh dấu ảnh avatar chính hay ảnh phụ.
+    """
+    __tablename__ = "face_embeddings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    member_id = Column(Integer, ForeignKey("members.id"), nullable=False, index=True)
+    image_url = Column(String(500), nullable=True)
+    embedding = Column(Text, nullable=False)  # JSON serialized list of floats
+    face_box = Column(String(100), nullable=True)
+    is_primary = Column(Boolean, default=True, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=True)
+
+    # Relationships
+    family = relationship("Family")
+    member = relationship("Member")
