@@ -8,6 +8,9 @@ from routers import members
 from routers import upload # <--- Import
 from routers import events # <--- Import Events
 from routers import finance # <--- Import Finance
+from routers import auth
+from routers import families
+
 # Optional chat router: some deployments may not include chat.py
 
 app = FastAPI(title="Family Management Backend")
@@ -22,6 +25,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Kích hoạt middleware gia hạn session
 
 app.include_router(auth.router)
+app.include_router(families.router)
 app.include_router(members.router)
 app.include_router(upload.router) # <--- Include
 app.include_router(events.router) # <--- Include Events

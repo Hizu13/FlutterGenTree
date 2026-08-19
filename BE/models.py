@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Date, ForeignKey, Text, Enum, TIMESTAMP, UniqueConstraint
+    Column, Integer, String, Date, ForeignKey, Text, Enum, TIMESTAMP, UniqueConstraint,  Boolean, Float
 )
 from sqlalchemy.orm import relationship
 from db.mysql_connection import Base
@@ -150,35 +150,34 @@ class Event(Base):
 # FINANCE MODELS - Quản lý tài chính gia phả (Thu, chi, công đức)
 # ============================================================================
 
-class TransactionTypeEnum(enum.Enum):
-    income = "income"      # Thu
-    expense = "expense"    # Chi
-    merit = "merit"        # Công đức
-
 class Transaction(Base):
+    """
+    Model quản lý các giao dịch thu, chi, công đức của dòng họ:
+    - Loại giao dịch: `type` (income: khoản thu, expense: khoản chi, merit: công đức).
+    - Phê duyệt: `status` ('approved', 'pending', 'rejected').
+      - Admin / Editor tạo: `status = 'approved'`, `requires_approval = False` (Thêm trực tiếp).
+      - Member thường tạo: `status = 'pending'`, `requires_approval = True` (Chờ duyệt).
+    """
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
-    person_id = Column(Integer, ForeignKey("persons.id"), nullable=True)  # Người thực hiện giao dịch
-    
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    member_id = Column(Integer, ForeignKey("members.id"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
-    amount = Column(Integer, nullable=False)  # Số tiền (VNĐ)
-    type = Column(Enum(TransactionTypeEnum), nullable=False)
-    category = Column(String(100), nullable=True)  # Danh mục: "Lễ vật", "Quà tặng", "Sửa mộ"...
-    
-    transaction_date = Column(Date, nullable=False)
+    amount = Column(Float, nullable=False)
+    type = Column(String(20), nullable=False)  # income, expense, merit
+    person_name = Column(String(255), nullable=False)
+    category = Column(String(100), nullable=True)
+    date = Column(Date, nullable=False, index=True)
     note = Column(Text, nullable=True)
-    
-    # Trạng thái phê duyệt (cho các khoản chi lớn)
-    requires_approval = Column(Integer, default=0)  # 0: không cần, 1: cần phê duyệt
-    is_approved = Column(Integer, default=1)  # 0: chưa duyệt, 1: đã duyệt
-    approved_by = Column(Integer, ForeignKey("persons.id"), nullable=True)
-    
+    status = Column(String(20), default="approved", nullable=False)  # approved, pending, rejected
+    requires_approval = Column(Boolean, default=False, nullable=False)
+    created_by_user_id = Column(Integer, nullable=True)
+    approved_by_user_id = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP, nullable=True)
     updated_at = Column(TIMESTAMP, nullable=True)
 
     # Relationships
-    family = relationship("Family")
-    person = relationship("Person", foreign_keys=[person_id])
-    approver = relationship("Person", foreign_keys=[approved_by])
+    family = relationship("Family", back_populates="transactions")
+    member = relationship("Member", foreign_keys=[member_id])
+

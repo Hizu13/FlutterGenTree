@@ -290,6 +290,9 @@ packages:
     version: "1.17.0"
 <<<<<<< HEAD
 =======
+<<<<<<< HEAD
+=======
+>>>>>>> origin/develop
   mime:
     dependency: "direct main"
     description:
@@ -298,7 +301,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.6"
+<<<<<<< HEAD
+=======
 >>>>>>> develop
+>>>>>>> origin/develop
   path:
     dependency: transitive
     description:
@@ -458,6 +464,9 @@ packages:
     version: "0.7.7"
 <<<<<<< HEAD
 =======
+<<<<<<< HEAD
+=======
+>>>>>>> origin/develop
   typed_data:
     dependency: transitive
     description:
@@ -466,7 +475,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+<<<<<<< HEAD
+=======
 >>>>>>> develop
+>>>>>>> origin/develop
   vector_math:
     dependency: transitive
     description:
