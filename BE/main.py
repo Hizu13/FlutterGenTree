@@ -11,6 +11,8 @@ from routers import finance # <--- Import Finance
 from routers import auth
 from routers import families
 from routers import admin
+from routers import face_recognition
+import models
 
 
 # Optional chat router: some deployments may not include chat.py
@@ -20,6 +22,7 @@ app = FastAPI(title="Family Management Backend")
 # Mount Static Files
 import os
 os.makedirs("static", exist_ok=True)
+os.makedirs("static/face_crops", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Trigger reload for DB table recreation
@@ -33,6 +36,9 @@ app.include_router(upload.router) # <--- Include
 app.include_router(events.router) # <--- Include Events
 app.include_router(finance.router) # <--- Include Finance
 app.include_router(admin.router)
+app.include_router(face_recognition.router)
+
+
 
 
 

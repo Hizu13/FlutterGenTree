@@ -16,8 +16,8 @@ import '../../auth/services/auth_service.dart';
 /// Thiết kế theo Figma: AppBar nâu đậm, ô tìm kiếm, bộ lọc Đời/Giới tính/Địa chỉ,
 /// danh sách thẻ thành viên, footer thống kê, FAB "+".
 class MemberListScreen extends StatefulWidget {
-  const MemberListScreen({super.key});
-
+  final FamilyModel? family;
+  const MemberListScreen({super.key, this.family});
   @override
   State<MemberListScreen> createState() => _MemberListScreenState();
 }
@@ -40,9 +40,17 @@ class _MemberListScreenState extends State<MemberListScreen> {
   @override
   void initState() {
     super.initState();
+    _currentFamily = widget.family;
     _loadMembers();
   }
-
+  @override
+  void didUpdateWidget(covariant MemberListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.family?.id != widget.family?.id) {
+      _currentFamily = widget.family;
+      _loadMembers();
+    }
+  }
   /// Quyền hạn của người dùng hiện tại trong gia phả này
   bool get _isAdmin {
     final famRole = _currentFamily?.userRole;
@@ -96,7 +104,7 @@ class _MemberListScreenState extends State<MemberListScreen> {
       _errorMessage = null;
     });
     try {
-      final family = await FamilyApiService.getCurrentFamily();
+      final family = widget.family ?? await FamilyApiService.getCurrentFamily();
       final user = await AuthService.getSavedUser();
       final data = await MemberRepository.fetchAll(
         forceRefresh: true,

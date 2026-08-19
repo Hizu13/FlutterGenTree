@@ -1,16 +1,16 @@
-# routers/flutter_members.py
-# API chuyên dụng cho Flutter app - không yêu cầu xác thực (development mode)
+# routers/members.py
+# API chuyên dụng cho quản lý Member trong Gia Phả
 # Tự động chuyển đổi giữa format backend (snake_case, male/female, Date)
 # và format Flutter (camelCase, Nam/Nữ, dd/MM/yyyy)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from db.mysql_connection import get_db
-from models import User, Member
+from models import Member, User, Family
 from schemas import MemberFlutterRead, MemberFlutterCreate
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel
 from db.neo4j_connection import (
     add_person_to_graph,
     delete_person_from_graph,
@@ -18,6 +18,7 @@ from db.neo4j_connection import (
     create_relationship_in_graph,
     neo4j_conn,
 )
+
 # Alias helper neo4j
 add_member_to_graph = add_person_to_graph
 delete_member_from_graph = delete_person_from_graph
@@ -147,10 +148,11 @@ def get_all_members(
     db: Session = Depends(get_db),
 ):
     """Lấy danh sách thành viên chính thức (approved) của gia phả."""
-    from sqlalchemy import or_    
+    from sqlalchemy import or_
     query = db.query(Member)
     if family_id:
         query = query.filter(Member.family_id == family_id)
+
     if status == "approved":
         query = query.filter(
             or_(Member.status == "approved", Member.status.is_(None)),
@@ -163,8 +165,39 @@ def get_all_members(
     elif status != "all":
         query = query.filter(Member.status == status)
 
-    member = query.all()
-    return [_member_to_flutter(db, p, request) for p in members]
+    members = query.all()
+    return [_member_to_flutter(db, m, request) for m in members]
+
+
+# ===========================================================================
+# TÌM KIẾM MỐI QUAN HỆ TRONG GIA PHẢ (NEO4J & MYSQL HYBRID)
+# ===========================================================================
+
+from routers.relationship_service import calculate_relationship_path
+
+
+class RelationshipPathRequest(BaseModel):
+    from_id: int
+    to_id: int
+
+
+@router.post("/path")
+def find_relationship_path_api(
+    data: RelationshipPathRequest,
+    db: Session = Depends(get_db),
+):
+    """Tìm kiếm mối quan hệ huyết thống giữa 2 thành viên trong gia phả (POST)."""
+    return calculate_relationship_path(data.from_id, data.to_id, db)
+
+
+@router.get("/path")
+def find_relationship_path_get_api(
+    from_id: int = Query(..., description="ID của người thứ nhất"),
+    to_id: int = Query(..., description="ID của người thứ hai"),
+    db: Session = Depends(get_db),
+):
+    """Tìm kiếm mối quan hệ huyết thống giữa 2 thành viên trong gia phả (GET)."""
+    return calculate_relationship_path(from_id, to_id, db)
 
 
 @router.get("/{member_id}", response_model=MemberFlutterRead)
@@ -235,7 +268,7 @@ def create_member(request: Request, data: MemberFlutterCreate, db: Session = Dep
 @router.put("/{member_id}", response_model=MemberFlutterRead)
 def update_member(request: Request, member_id: int, data: MemberFlutterCreate, db: Session = Depends(get_db)):
     """Cập nhật thông tin thành viên."""
-    person = db.query(Member).filter(Member.id == member_id).first()
+    member = db.query(Member).filter(Member.id == member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
 
@@ -275,7 +308,7 @@ def update_member(request: Request, member_id: int, data: MemberFlutterCreate, d
         member.father_id = _safe_int(data.fatherId)
     if data.motherId is not None:
         member.mother_id = _safe_int(data.motherId)
-        
+
     # Đồng bộ avatar sang tài khoản User liên kết nếu có
     if member.user_id and data.avatarUrl:
         u = db.query(User).filter(User.id == member.user_id).first()
@@ -353,10 +386,11 @@ def delete_member(member_id: int, db: Session = Depends(get_db)):
 
     # Sync delete to Neo4j (best-effort)
     try:
-        delete_person_from_graph(member_id)
+        delete_member_from_graph(member_id)
     except Exception as e:
         print(f"[!] Neo4j sync failed on delete: {e}")
     return {"detail": f"Đã xóa thành viên ID={member_id}"}
+
 
 class MemberRoleUpdateRequest(BaseModel):
     role: str  # 'admin', 'editor', 'member'
@@ -435,7 +469,6 @@ def neo4j_resync_all(db: Session = Depends(get_db)):
     """Đồng bộ lại toàn bộ dữ liệu Member (theo family_id) từ MySQL lên Neo4j.
     Cẩn thận: có thể tốn thời gian với nhiều bản ghi.
     """
-    # Lấy danh sách family_id duy nhất
     family_ids = db.query(Member.family_id).distinct().all()
     families = [fid[0] for fid in family_ids if fid[0] is not None]
     total = 0
@@ -448,7 +481,7 @@ def neo4j_resync_all(db: Session = Depends(get_db)):
         members = db.query(Member).filter(Member.family_id == fam).all()
         for m in members:
             try:
-                add_person_to_graph(
+                add_member_to_graph(
                     id=m.id,
                     full_name=f"{m.last_name or ''} {m.first_name or ''}".strip(),
                     gender=m.gender,
@@ -458,7 +491,7 @@ def neo4j_resync_all(db: Session = Depends(get_db)):
                 )
                 total += 1
             except Exception as e:
-                print(f"[!] Neo4j add_person failed for {m.id}: {e}")
+                print(f"[!] Neo4j add_member failed for {m.id}: {e}")
 
         for m in members:
             if m.father_id:
@@ -473,3 +506,5 @@ def neo4j_resync_all(db: Session = Depends(get_db)):
                     print(f"[!] Neo4j create relationship failed: {e}")
 
     return {"detail": "Resync all requested", "families": len(families), "nodes_processed": total}
+
+

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:gentree/config/app_color.dart';
+
 import '../../family/models/family_model.dart';
 import '../../family/services/family_api_service.dart';
 import '../../member/services/member_api_service.dart';
@@ -64,7 +65,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-void _handleImportExcel() {
+  void _handleImportExcel() {
     if (_activeFamilyId == null) return;
     _showExcelOptionsBottomSheet();
   }
@@ -310,17 +311,17 @@ void _handleImportExcel() {
   }
 
   Future<void> _pickAndImportExcel() async {
-        if (_activeFamilyId == null) return;
+    if (_activeFamilyId == null) return;
 
     try {
-      final result = await FilePickerPlatform.instance.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls'],
       );
 
-      if (result != null && result.isNotEmpty && result.first.path != null) {
-        final file = File(result.first.path!);
-        final fileName = result.first.name;
+      if (result != null && result.files.isNotEmpty && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final fileName = result.files.single.name;
 
         if (!mounted) return;
         final confirm = await showDialog<bool>(
@@ -771,7 +772,7 @@ void _handleImportExcel() {
         ),
         const SizedBox(height: 10),
 
-        // 7. Import gia phả bằng file Excel
+        // 7. Nhập gia phả bằng file Excel
         _buildActionTile(
           icon: Icons.file_upload_outlined,
           title: 'Nhập gia phả bằng file Excel',
@@ -788,8 +789,8 @@ void _handleImportExcel() {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
-    int? badgeCount,
     Color? iconColor,
+    int? badgeCount,
   }) {
     return InkWell(
       onTap: onTap,

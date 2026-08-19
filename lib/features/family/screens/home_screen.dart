@@ -14,6 +14,7 @@ import '../models/family_model.dart';
 import '../services/family_api_service.dart';
 import '../../admin/screens/admin_dashboard_screen.dart';
 import '../../admin/services/admin_api_service.dart';
+import '../../face_recognition/screens/face_scanner_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<FamilyModel> _myFamilies = [];
   String _currentBranch = 'Họ nội';
   int _totalAdminPendingCount = 0;
+  final GlobalKey<FaceScannerScreenState> _faceScannerKey = GlobalKey<FaceScannerScreenState>();
 
   @override
   void initState() {
@@ -50,7 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final fresh = await AuthService.fetchProfile();
     if (mounted && fresh != null) {
       setState(() {
-        _currentUser = fresh;      });
+        _currentUser = fresh;
+      });
     }
   }
 
@@ -115,18 +118,14 @@ class _HomeScreenState extends State<HomeScreen> {
           final d = DateTime(date.year, date.month, date.day);
           return !d.isBefore(today);
         }).toList();
-        upcoming.sort(
-          (a, b) => (a.solarDate ?? a.date).compareTo(b.solarDate ?? b.date),
-        );
+        upcoming.sort((a, b) => (a.solarDate ?? a.date).compareTo(b.solarDate ?? b.date));
 
         final past = events.where((e) {
           final date = e.solarDate ?? e.date;
           final d = DateTime(date.year, date.month, date.day);
           return d.isBefore(today);
         }).toList();
-        past.sort(
-          (a, b) => (b.solarDate ?? b.date).compareTo(a.solarDate ?? a.date),
-        );
+        past.sort((a, b) => (b.solarDate ?? b.date).compareTo(a.solarDate ?? a.date));
 
         setState(() {
           _events = [...upcoming, ...past];
@@ -147,10 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(Icons.logout_rounded, color: AppColors.badgeRed, size: 24),
             SizedBox(width: 8),
-            Text(
-              'Đăng xuất',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            Text('Đăng xuất', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
         content: const Text(
@@ -160,19 +156,14 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'Hủy',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
+            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.badgeRed,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Đăng xuất'),
           ),
@@ -200,6 +191,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onTabSelected(int index) {
+    if (index == 2 && _currentBottomIndex == 2) {
+      _faceScannerKey.currentState?.captureAndScan();
+      return;
+    }
     setState(() {
       _currentBottomIndex = index;
     });
@@ -220,9 +215,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPageContent() {
     switch (_currentBottomIndex) {
       case 1:
-        return const MemberListScreen();
+        return MemberListScreen(
+          key: ValueKey('member_list_${_currentFamily?.id}'),
+          family: _currentFamily,
+        );
+
       case 2:
-        return _buildPlaceholderScreen('Nhận diện AI');
+        return FaceScannerScreen(
+          key: _faceScannerKey,
+          onBack: () {
+            setState(() {
+              _currentBottomIndex = 0;
+            });
+          },
+        );
       case 3:
         return EventScreen(events: _events);
       case 4:
@@ -366,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen> {
               border: Border.all(color: Colors.white, width: 2),
               color: AppColors.surfaceWarm,
             ),
-              child: ClipOval(
+            child: ClipOval(
               child: _currentUser?.resolvedAvatarUrl != null &&
                       _currentUser!.resolvedAvatarUrl!.isNotEmpty
                   ? Image.network(
@@ -374,10 +380,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       fit: BoxFit.cover,
                       width: 48,
                       height: 48,
-                      errorBuilder: (context, error, stack) => const Icon(              Icons.person_outline_rounded,
-              color: AppColors.primaryDark,
-              size: 28,
-              ),
+                      errorBuilder: (context, error, stack) => const Icon(
+                        Icons.person_outline_rounded,
+                        color: AppColors.primaryDark,
+                        size: 28,
+                      ),
                     )
                   : const Icon(
                       Icons.person_outline_rounded,
@@ -432,6 +439,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   onPressed: () {},
                 ),
+
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -484,8 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // POPUP MENU CHO ROLE
   // ===========================================================================
   Widget _buildRolePopupMenu() {
-    final bool isAdmin =
-        _currentFamily?.userRole == 'owner' ||
+    final bool isAdmin = _currentFamily?.userRole == 'owner' ||
         _currentFamily?.userRole == 'admin' ||
         (_currentFamily?.ownerId != null &&
             _currentUser?.id != null &&
@@ -512,38 +519,41 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildMenuItem(
-              icon: Icons.shield_outlined,
-              text: 'Quản trị',
-              textColor: AppColors.textPrimary,
-              badgeCount: isAdmin ? _totalAdminPendingCount : 0,
-              onTap: () async {
-                setState(() => _showRoleMenu = false);
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (ctx) =>
-                        AdminDashboardScreen(familyId: _currentFamily?.id),
-                  ),
-                );
-                _loadAdminStats();
-              },
-            ),
-            // Mục chỉnh sửa thông tin gia phả dành cho Admin/Owner
-            if (isAdmin && _currentFamily != null) ...[
-              const Divider(height: 1, color: AppColors.divider),
+            // Chỉ hiển thị mục Quản trị & Chỉnh sửa gia phả khi tài khoản là Admin / Owner của gia phả này
+            if (isAdmin) ...[
               _buildMenuItem(
-                icon: Icons.edit_note_rounded,
-                text: 'Chỉnh sửa gia phả',
-                textColor: const Color(0xFF1E60B5),
-                onTap: () {
+                icon: Icons.shield_outlined,
+                text: 'Quản trị',
+                textColor: AppColors.textPrimary,
+                badgeCount: _totalAdminPendingCount,
+                onTap: () async {
                   setState(() => _showRoleMenu = false);
-                  _showEditFamilyDialog();
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (ctx) => AdminDashboardScreen(
+                        familyId: _currentFamily?.id,
+                      ),
+                    ),
+                  );
+                  _loadAdminStats();
                 },
               ),
+              if (_currentFamily != null) ...[
+                const Divider(height: 1, color: AppColors.divider),
+                _buildMenuItem(
+                  icon: Icons.edit_note_rounded,
+                  text: 'Chỉnh sửa gia phả',
+                  textColor: const Color(0xFF1E60B5),
+                  onTap: () {
+                    setState(() => _showRoleMenu = false);
+                    _showEditFamilyDialog();
+                  },
+                ),
+              ],
+              const Divider(height: 1, color: AppColors.divider),
             ],
 
-            const Divider(height: 1, color: AppColors.divider),
             _buildMenuItem(
               icon: Icons.person_outline_rounded,
               text: 'Hồ sơ cá nhân',
@@ -563,16 +573,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
   /// Hộp thoại/BottomSheet chỉnh sửa thông tin gia phả
   void _showEditFamilyDialog() {
     if (_currentFamily == null) return;
     final nameCtrl = TextEditingController(text: _currentFamily!.name);
-    final originCtrl = TextEditingController(
-      text: _currentFamily!.originLocation ?? '',
-    );
-    final descCtrl = TextEditingController(
-      text: _currentFamily!.description ?? '',
-    );
+    final originCtrl = TextEditingController(text: _currentFamily!.originLocation ?? '');
+    final descCtrl = TextEditingController(text: _currentFamily!.description ?? '');
     final formKey = GlobalKey<FormState>();
     bool isSaving = false;
 
@@ -652,10 +659,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Mã gia phả (chỉ đọc)
                   if (_currentFamily!.joinCode != null) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceWarm,
                         borderRadius: BorderRadius.circular(10),
@@ -663,26 +667,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.qr_code_rounded,
-                            size: 20,
-                            color: AppColors.primaryMedium,
-                          ),
+                          const Icon(Icons.qr_code_rounded, size: 20, color: AppColors.primaryMedium),
                           const SizedBox(width: 10),
-                          const Text(
-                            'Mã gia phả: ',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
+                          const Text('Mã gia phả: ', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                           Text(
                             _currentFamily!.joinCode!,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark,
-                            ),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
                           ),
                         ],
                       ),
@@ -691,91 +681,44 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
 
                   // Tên gia phả
-                  const Text(
-                    'Tên gia phả *',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  const Text('Tên gia phả *', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: nameCtrl,
                     decoration: InputDecoration(
                       hintText: 'Nhập tên gia phả (VD: Gia phả họ Nguyễn)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.family_restroom_rounded,
-                        size: 20,
-                        color: AppColors.primaryMedium,
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      prefixIcon: const Icon(Icons.family_restroom_rounded, size: 20, color: AppColors.primaryMedium),
                     ),
-                    validator: (val) => (val == null || val.trim().isEmpty)
-                        ? 'Vui lòng nhập tên gia phả'
-                        : null,
+                    validator: (val) => (val == null || val.trim().isEmpty) ? 'Vui lòng nhập tên gia phả' : null,
                   ),
                   const SizedBox(height: 14),
 
                   // Quê quán / Nguồn gốc
-                  const Text(
-                    'Quê quán / Nguồn gốc',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  const Text('Quê quán / Nguồn gốc', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: originCtrl,
                     decoration: InputDecoration(
-                      hintText:
-                          'Nhập quê quán / nguyên quán (VD: Hà Tây, Nam Định)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.location_on_outlined,
-                        size: 20,
-                        color: AppColors.primaryMedium,
-                      ),
+                      hintText: 'Nhập quê quán / nguyên quán (VD: Hà Tây, Nam Định)',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      prefixIcon: const Icon(Icons.location_on_outlined, size: 20, color: AppColors.primaryMedium),
                     ),
                   ),
                   const SizedBox(height: 14),
 
                   // Mô tả / Lời tựa
-                  const Text(
-                    'Giới thiệu / Lời tựa',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  const Text('Giới thiệu / Lời tựa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: descCtrl,
                     maxLines: 3,
                     decoration: InputDecoration(
                       hintText: 'Nhập lời tựa hoặc giới thiệu về dòng họ...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 22),
@@ -791,36 +734,29 @@ class _HomeScreenState extends State<HomeScreen> {
                               if (!formKey.currentState!.validate()) return;
                               setSheetState(() => isSaving = true);
                               try {
-                                final updated =
-                                    await FamilyApiService.updateFamily(
-                                      familyId: _currentFamily!.id!,
-                                      name: nameCtrl.text.trim(),
-                                      originLocation: originCtrl.text.trim(),
-                                      description: descCtrl.text.trim(),
-                                    );
+                                final updated = await FamilyApiService.updateFamily(
+                                  familyId: _currentFamily!.id!,
+                                  name: nameCtrl.text.trim(),
+                                  originLocation: originCtrl.text.trim(),
+                                  description: descCtrl.text.trim(),
+                                );
                                 if (sheetCtx.mounted) {
                                   Navigator.pop(sheetCtx);
                                 }
                                 if (mounted && updated != null) {
                                   setState(() {
                                     _currentFamily = updated;
-                                    final idx = _myFamilies.indexWhere(
-                                      (f) => f.id == updated.id,
-                                    );
+                                    final idx = _myFamilies.indexWhere((f) => f.id == updated.id);
                                     if (idx != -1) {
                                       _myFamilies[idx] = updated;
                                     }
                                   });
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(
-                                        'Đã cập nhật gia phả: ${updated.name}',
-                                      ),
+                                      content: Text('Đã cập nhật gia phả: ${updated.name}'),
                                       backgroundColor: AppColors.primaryDark,
                                       behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                     ),
                                   );
                                 }
@@ -834,9 +770,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       content: Text('Lỗi cập nhật: $e'),
                                       backgroundColor: AppColors.error,
                                       behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                     ),
                                   );
                                 }
@@ -845,26 +779,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 2,
                       ),
                       child: isSaving
                           ? const SizedBox(
                               width: 22,
                               height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : const Text(
                               'Lưu thay đổi',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                     ),
                   ),
@@ -943,10 +869,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: _handleBranchSwitch,
               borderRadius: BorderRadius.circular(16),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 5,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
                 decoration: BoxDecoration(
                   color: const Color(0xFF8D4B20),
                   borderRadius: BorderRadius.circular(16),
@@ -1034,48 +957,52 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Xử lý bấm vào nút Họ nội / Họ ngoại
-  void _handleBranchSwitch() {
+  Future<void> _handleBranchSwitch() async {
     if (_myFamilies.length >= 2) {
       // Đã có cả 2 gia phả -> Tự động chuyển đổi giữa 2 bên
+      final nextFamily = (_currentFamily?.id == _myFamilies[0].id)
+          ? _myFamilies[1]
+          : _myFamilies[0];
+      final nextBranch = (_currentFamily?.id == _myFamilies[0].id)
+          ? 'Họ ngoại'
+          : 'Họ nội';
+
       setState(() {
-        if (_currentFamily?.id == _myFamilies[0].id) {
-          _currentFamily = _myFamilies[1];
-          _currentBranch = 'Họ ngoại';
-        } else {
-          _currentFamily = _myFamilies[0];
-          _currentBranch = 'Họ nội';
-        }
+        _currentFamily = nextFamily;
+        _currentBranch = nextBranch;
       });
-      FamilyApiService.saveCurrentFamily(_currentFamily!);
+
+      await FamilyApiService.saveCurrentFamily(nextFamily);
       MemberRepository.invalidateCache();
-      _loadUpcomingEvents();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.sync_alt_rounded, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Đã chuyển sang $_currentBranch: ${_currentFamily?.name}',
+      await _loadUpcomingEvents();
+      await _loadAdminStats();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.sync_alt_rounded, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('Đã chuyển sang $nextBranch: ${nextFamily.name}'),
                 ),
-              ),
-            ],
+              ],
+            ),
+            backgroundColor: AppColors.primary,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+        );
+      }
     } else {
       // Mới tham gia 1 bên -> Mở tùy chọn thêm nhánh còn lại
       final otherBranch = _currentBranch == 'Họ nội' ? 'Họ ngoại' : 'Họ nội';
       _showAddBranchOptionModal(otherBranch: otherBranch);
     }
   }
+
 
   /// Modal tùy chọn thêm nhánh gia phả thứ 2 (Họ ngoại / Họ nội)
   void _showAddBranchOptionModal({required String otherBranch}) {
@@ -1111,10 +1038,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: const Color(0xFFF3E7DC),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.add_circle_outline_rounded,
-                    color: Color(0xFF6B3E1E),
-                  ),
+                  child: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF6B3E1E)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1132,11 +1056,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 12),
             Text(
               'Bạn hiện đang xem gia phả "${_currentFamily?.name ?? ''}" ($_currentBranch). Bạn muốn liên kết thêm gia phả $otherBranch?',
-              style: const TextStyle(
-                fontSize: 13.5,
-                color: Color(0xFF7D6E65),
-                height: 1.4,
-              ),
+              style: const TextStyle(fontSize: 13.5, color: Color(0xFF7D6E65), height: 1.4),
             ),
             const SizedBox(height: 20),
 
@@ -1147,26 +1067,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 side: const BorderSide(color: Color(0xFFE5DCD3)),
               ),
               tileColor: const Color(0xFFFAF7F2),
-              leading: const Icon(
-                Icons.park_outlined,
-                color: Color(0xFF6B3E1E),
-              ),
+              leading: const Icon(Icons.park_outlined, color: Color(0xFF6B3E1E)),
               title: Text(
                 'Tạo gia phả $otherBranch mới',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D1C10),
-                ),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2D1C10)),
               ),
               subtitle: Text(
                 'Tạo gia phả riêng cho dòng họ bên $otherBranch',
                 style: const TextStyle(fontSize: 12, color: Color(0xFF7D6E65)),
               ),
-              trailing: const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF6B3E1E),
-              ),
+              trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF6B3E1E)),
               onTap: () {
                 Navigator.pop(ctx);
                 _showCreateFamilyBranchModal(otherBranch);
@@ -1181,26 +1091,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 side: const BorderSide(color: Color(0xFFE5DCD3)),
               ),
               tileColor: const Color(0xFFFAF7F2),
-              leading: const Icon(
-                Icons.people_alt_outlined,
-                color: Color(0xFF6B3E1E),
-              ),
+              leading: const Icon(Icons.people_alt_outlined, color: Color(0xFF6B3E1E)),
               title: Text(
                 'Nhập mã gia phả $otherBranch',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D1C10),
-                ),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2D1C10)),
               ),
               subtitle: Text(
                 'Nhập mã join code để tham gia gia phả $otherBranch đã có',
                 style: const TextStyle(fontSize: 12, color: Color(0xFF7D6E65)),
               ),
-              trailing: const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF6B3E1E),
-              ),
+              trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF6B3E1E)),
               onTap: () {
                 Navigator.pop(ctx);
                 _showJoinFamilyBranchModal(otherBranch);
@@ -1262,10 +1162,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: const Color(0xFFF3E7DC),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
-                            Icons.park_rounded,
-                            color: Color(0xFF6B3E1E),
-                          ),
+                          child: const Icon(Icons.park_rounded, color: Color(0xFF6B3E1E)),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1281,13 +1178,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    const Text(
-                      'Tên dòng họ / Gia phả *',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    const Text('Tên dòng họ / Gia phả *', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: nameCtrl,
@@ -1295,22 +1186,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         hintText: 'Ví dụ: Gia phả $branch - Chi 1',
                         filled: true,
                         fillColor: const Color(0xFFFAF7F2),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Vui lòng nhập tên gia phả'
-                          : null,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tên gia phả' : null,
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Quê quán / Nguồn gốc',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    const Text('Quê quán / Nguồn gốc', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: originCtrl,
@@ -1318,19 +1199,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         hintText: 'Ví dụ: Nam Định, Việt Nam',
                         filled: true,
                         fillColor: const Color(0xFFFAF7F2),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Mã tham gia tùy chọn',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    const Text('Mã tham gia tùy chọn', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: codeCtrl,
@@ -1339,9 +1212,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         hintText: 'Ví dụ: NGUYEN88 (Để trống tự sinh)',
                         filled: true,
                         fillColor: const Color(0xFFFAF7F2),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -1357,13 +1228,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                 final navigator = Navigator.of(ctx);
                                 setModalState(() => isCreating = true);
                                 try {
-                                  final newFam =
-                                      await FamilyApiService.createFamily(
-                                        name: nameCtrl.text.trim(),
-                                        originLocation: originCtrl.text.trim(),
-                                        description: descCtrl.text.trim(),
-                                        joinCode: codeCtrl.text.trim(),
-                                      );
+                                  final newFam = await FamilyApiService.createFamily(
+                                    name: nameCtrl.text.trim(),
+                                    originLocation: originCtrl.text.trim(),
+                                    description: descCtrl.text.trim(),
+                                    joinCode: codeCtrl.text.trim(),
+                                  );
                                   navigator.pop();
                                   await _loadFamilyData();
                                   if (mounted) {
@@ -1374,21 +1244,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   }
                                   messenger.showSnackBar(
                                     SnackBar(
-                                      content: Text(
-                                        'Đã tạo và chuyển sang gia phả $branch: ${newFam.name}',
-                                      ),
+                                      content: Text('Đã tạo và chuyển sang gia phả $branch: ${newFam.name}'),
                                       backgroundColor: AppColors.success,
                                     ),
                                   );
                                 } catch (e) {
                                   messenger.showSnackBar(
                                     SnackBar(
-                                      content: Text(
-                                        e.toString().replaceAll(
-                                          'Exception: ',
-                                          '',
-                                        ),
-                                      ),
+                                      content: Text(e.toString().replaceAll('Exception: ', '')),
                                       backgroundColor: AppColors.error,
                                     ),
                                   );
@@ -1399,26 +1262,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF6B3E1E),
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: isCreating
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                'Tạo gia phả ngay',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('Tạo gia phả ngay', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -1473,10 +1321,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFF3E7DC),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(
-                        Icons.group_add_rounded,
-                        color: Color(0xFF6B3E1E),
-                      ),
+                      child: const Icon(Icons.group_add_rounded, color: Color(0xFF6B3E1E)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1492,10 +1337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Mã gia phả *',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-                ),
+                const Text('Mã gia phả *', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: codeCtrl,
@@ -1504,9 +1346,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     hintText: 'Nhập mã do quản trị viên cung cấp',
                     filled: true,
                     fillColor: const Color(0xFFFAF7F2),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -1529,8 +1369,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                               navigator.pop();
 
-                              if (result.requiresApproval ||
-                                  result.family == null) {
+                              if (result.requiresApproval || result.family == null) {
                                 messenger.showSnackBar(
                                   SnackBar(
                                     content: Text(result.message),
@@ -1547,9 +1386,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 }
                                 messenger.showSnackBar(
                                   SnackBar(
-                                    content: Text(
-                                      'Đã tham gia và chuyển sang gia phả $branch: ${result.family!.name}',
-                                    ),
+                                    content: Text('Đã tham gia và chuyển sang gia phả $branch: ${result.family!.name}'),
                                     backgroundColor: AppColors.success,
                                   ),
                                 );
@@ -1557,9 +1394,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             } catch (e) {
                               messenger.showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    e.toString().replaceAll('Exception: ', ''),
-                                  ),
+                                  content: Text(e.toString().replaceAll('Exception: ', '')),
                                   backgroundColor: AppColors.error,
                                 ),
                               );
@@ -1570,26 +1405,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF6B3E1E),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: isJoining
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            'Tham gia ngay',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Tham gia ngay', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -1599,7 +1419,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
   // ===========================================================================
   // 3. GRID THAO TÁC NHANH
   // ===========================================================================
@@ -1626,10 +1445,13 @@ class _HomeScreenState extends State<HomeScreen> {
               title: 'Phả đồ',
               subtitle: 'Xem cây gia phả',
               onTap: () {
-                Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const TreeScreen()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TreeScreen(family: _currentFamily),
+                  ),
+                );
               },
+
             ),
           ),
           _buildVerticalDivider(),
@@ -1944,12 +1766,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           )
         else
-          ...upcomingEvents.map(
-            (event) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _buildUpcomingEventCard(event),
-            ),
-          ),
+          ...upcomingEvents.map((event) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildUpcomingEventCard(event),
+              )),
       ],
     );
   }
@@ -2002,7 +1822,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Text(
                   event.yearLabel,
-                  style: const TextStyle(fontSize: 8.5, color: Colors.white70),
+                  style: const TextStyle(
+                    fontSize: 8.5,
+                    color: Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -2122,28 +1945,50 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedFontSize: 11,
         elevation: 0,
         onTap: _onTabSelected,
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Icon(Icons.home_rounded),
             activeIcon: Icon(Icons.home_rounded),
             label: 'Trang chủ',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.people_outline_rounded),
             activeIcon: Icon(Icons.people_rounded),
             label: 'Thành viên',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt_outlined),
-            activeIcon: Icon(Icons.camera_alt_rounded),
-            label: 'Nhận diện AI',
+            icon: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            activeIcon: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: AppColors.primaryExtraDark,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: Color(0xFFFFD580),
+                size: 18,
+              ),
+            ),
+            label: 'Nhận diện',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today_outlined),
             activeIcon: Icon(Icons.calendar_today_rounded),
             label: 'Sự kiện',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet_outlined),
             activeIcon: Icon(Icons.account_balance_wallet_rounded),
             label: 'Thu chi',
