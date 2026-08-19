@@ -416,10 +416,25 @@ class _NoFamilyWelcomeScreenState extends State<NoFamilyWelcomeScreen> {
                 color: Colors.white.withValues(alpha: 0.15),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
               ),
-              child: const Icon(
+              child: ClipOval(
+                child: _currentUser?.resolvedAvatarUrl != null &&
+                        _currentUser!.resolvedAvatarUrl!.isNotEmpty
+                    ? Image.network(
+                        _currentUser!.resolvedAvatarUrl!,
+                        fit: BoxFit.cover,
+                        width: 44,
+                        height: 44,
+                        errorBuilder: (context, error, stack) => const Icon(
                 Icons.person_outline_rounded,
                 color: Colors.white,
                 size: 26,
+                ),
+                      )
+                    : const Icon(
+                        Icons.person_outline_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
               ),
             ),
           ),

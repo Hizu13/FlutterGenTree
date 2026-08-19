@@ -6,7 +6,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from db.mysql_connection import get_db
-from models import Person, Member
+from models import User, Member
 from schemas import MemberFlutterRead, MemberFlutterCreate
 from typing import List, Optional
 from datetime import datetime
@@ -275,6 +275,12 @@ def update_member(request: Request, member_id: int, data: MemberFlutterCreate, d
         member.father_id = _safe_int(data.fatherId)
     if data.motherId is not None:
         member.mother_id = _safe_int(data.motherId)
+        
+    # Đồng bộ avatar sang tài khoản User liên kết nếu có
+    if member.user_id and data.avatarUrl:
+        u = db.query(User).filter(User.id == member.user_id).first()
+        if u:
+            u.avatar_url = data.avatarUrl
 
     db.commit()
     db.refresh(member)

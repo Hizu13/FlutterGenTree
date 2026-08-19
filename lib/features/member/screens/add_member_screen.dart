@@ -120,6 +120,9 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         DateTime.now().millisecondsSinceEpoch.toString();
     final member = MemberModel(
       id: id,
+      userId: widget.initialMember?.userId,
+      familyId: widget.initialMember?.familyId,
+      role: widget.initialMember?.role ?? 'member',
       fullName: _nameCtrl.text.trim(),
       gender: _gender,
       status: _status,
@@ -149,6 +152,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       generation: widget.initialMember?.generation,
       avatarUrl: widget.initialMember?.avatarUrl,
+      createdAt: widget.initialMember?.createdAt,
+
     );
 
     String? finalAvatarUrl = _avatarUrl ?? widget.initialMember?.avatarUrl;

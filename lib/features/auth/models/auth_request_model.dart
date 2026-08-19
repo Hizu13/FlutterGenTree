@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import '../../../config/api_config.dart';
+
 
 /// Model gửi yêu cầu Đăng nhập
 @immutable
@@ -136,7 +138,15 @@ class UserModel {
     if (username.isNotEmpty) return username;
     return 'Thành viên';
   }
-
+  /// URL ảnh đại diện đầy đủ
+  String? get resolvedAvatarUrl {
+    if (avatarUrl == null || avatarUrl!.isEmpty) return null;
+    if (avatarUrl!.startsWith('http://') || avatarUrl!.startsWith('https://')) {
+      return avatarUrl!;
+    }
+    final base = Uri.parse(ApiConfig.baseUrl).origin;
+    return '$base$avatarUrl';
+  }
   factory UserModel.fromJson(Map<String, dynamic> json) {
     int? parsedId;
     if (json['id'] != null) {

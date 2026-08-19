@@ -13,12 +13,17 @@ class MemberApiService {
   // Web: dùng localhost trực tiếp (cùng máy).
   // Android Emulator: dùng 10.0.2.2 để truy cập localhost của máy host.
   // iOS Simulator / Desktop: dùng localhost.
-  static String get baseUrl => ApiConfig.baseUrl;
-
+  static String get _cleanBaseUrl {
+    var u = ApiConfig.baseUrl.trim();
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+    return u;
+  }
   // ── GET: Lấy toàn bộ danh sách thành viên ─────────────────────────────────
   static Future<List<MemberModel>> fetchAll({int? familyId}) async {
     try {
-      String url = baseUrl;
+      String url = _cleanBaseUrl;
       if (familyId != null) {
         url += '?family_id=$familyId';
       }
@@ -60,7 +65,7 @@ class MemberApiService {
   // ── GET: Lấy chi tiết 1 thành viên ────────────────────────────────────────
   static Future<MemberModel> fetchById(String id) async {
     try {
-      final url = '$baseUrl/$id';
+      final url = '$_cleanBaseUrl/$id';
       try {
         // ignore: avoid_print
         print('MemberApiService.fetchById -> GET $url');
@@ -87,15 +92,17 @@ class MemberApiService {
   // ── POST: Tạo thành viên mới ──────────────────────────────────────────────
   static Future<MemberModel> create(MemberModel member) async {
     try {
+            final url = '$_cleanBaseUrl/';
+
       try {
         // ignore: avoid_print
         print(
-          'MemberApiService.create -> POST $baseUrl body=${member.toJson()}',
+          'MemberApiService.create -> POST $url body=${member.toJson()}',
         );
       } catch (_) {}
       final response = await http
           .post(
-            Uri.parse(baseUrl),
+            Uri.parse(url),
             headers: {'Content-Type': 'application/json'},
             body: json.encode(member.toJson()),
           )
@@ -120,7 +127,7 @@ class MemberApiService {
   static Future<String> uploadImage(File file) async {
     try {
       // Build upload URI from baseUrl origin to avoid path replacement issues
-      final origin = Uri.parse(baseUrl).origin; // e.g. http://10.0.2.2:8000
+      final origin = Uri.parse(_cleanBaseUrl).origin; // e.g. http://10.0.2.2:8000
       final uri = Uri.parse('$origin/upload/image');
       // Debug
       try {
@@ -167,7 +174,7 @@ class MemberApiService {
   // ── PUT: Cập nhật thành viên ───────────────────────────────────────────────
   static Future<MemberModel> update(String id, MemberModel member) async {
     try {
-      final url = '$baseUrl/$id';
+      final url = '$_cleanBaseUrl/$id';
       try {
         // ignore: avoid_print
         print('MemberApiService.update -> PUT $url body=${member.toJson()}');
@@ -198,7 +205,7 @@ class MemberApiService {
   // ── PUT: Cập nhật vai trò thành viên (Phân quyền editor/member) ───────────
   static Future<void> updateRole(String id, String role) async {
     try {
-      final url = '$baseUrl/$id/role';
+      final url = '$_cleanBaseUrl/$id/role';
       try {
         // ignore: avoid_print
         print('MemberApiService.updateRole -> PUT $url body: role=$role');
@@ -226,7 +233,7 @@ class MemberApiService {
   // ── DELETE: Xóa thành viên ─────────────────────────────────────────────────
   static Future<void> delete(String id) async {
     try {
-      final url = '$baseUrl/$id';
+      final url = '$_cleanBaseUrl/$id';
       try {
         // ignore: avoid_print
         print('MemberApiService.delete -> DELETE $url');

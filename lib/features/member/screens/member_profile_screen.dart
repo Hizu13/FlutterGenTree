@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../../../config/app_color.dart';
 import '../models/member_model.dart';
 import 'add_member_screen.dart';
+import '../repositories/member_repository.dart';
+
 
 /// Màn hình Hồ Sơ Thành Viên.
 /// Thiết kế theo Figma: AppBar nâu, avatar lớn, 4 stat card,
@@ -87,12 +89,19 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
         builder: (_) => AddMemberScreen(
           existingMembers: widget.allMembers,
           initialMember: _member,
-          onSaved: (updated) {
-            setState(() => _member = updated);
-            widget.onUpdated?.call(updated);
+          onSaved: (updated) async {
+            if (_member.id == null) return;
+            try {
+              final result = await MemberRepository.updateMember(
+                _member.id!,
+                updated,
+              );
+              if (mounted) {
+                setState(() => _member = result);
+                widget.onUpdated?.call(result);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Đã cập nhật: ${updated.fullName}'),
+                    content: Text('Đã cập nhật: ${result.fullName}'),
                 backgroundColor: AppColors.primaryMedium,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -100,7 +109,22 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
                 ),
                 duration: const Duration(seconds: 2),
               ),
-            );
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi khi lưu vào cơ sở dữ liệu: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
+            }
           },
         ),
       ),
@@ -112,11 +136,14 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
       MaterialPageRoute(
         builder: (_) => AddMemberScreen(
           existingMembers: widget.allMembers,
-          onSaved: (newMember) {
-            widget.onMemberAdded?.call(newMember);
+          onSaved: (newMember) async {
+            try {
+              final created = await MemberRepository.addMember(newMember);
+              if (mounted) {
+                widget.onMemberAdded?.call(created);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Đã thêm thành viên: ${newMember.fullName}'),
+                    content: Text('Đã thêm thành viên: ${created.fullName}'),
                 backgroundColor: AppColors.primaryMedium,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -124,7 +151,22 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
                 ),
                 duration: const Duration(seconds: 2),
               ),
-            );
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi khi thêm thành viên: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
+            }
           },
         ),
       ),

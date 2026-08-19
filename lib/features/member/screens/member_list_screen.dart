@@ -576,8 +576,8 @@ class _MemberListScreenState extends State<MemberListScreen> {
   // ===========================================================================
   // ACTIONS
   // ===========================================================================
-  void _onMemberTap(MemberModel member) {
-    Navigator.of(context).push(
+  void _onMemberTap(MemberModel member) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MemberProfileScreen(
           member: member,
@@ -599,6 +599,9 @@ class _MemberListScreenState extends State<MemberListScreen> {
         ),
       ),
     );
+    if (mounted) {
+      _loadMembers();
+    }
   }
 
   void _onAddMember() {
