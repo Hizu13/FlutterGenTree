@@ -10,6 +10,8 @@ from routers import events # <--- Import Events
 from routers import finance # <--- Import Finance
 from routers import auth
 from routers import families
+from routers import admin
+
 
 # Optional chat router: some deployments may not include chat.py
 
@@ -30,6 +32,8 @@ app.include_router(members.router)
 app.include_router(upload.router) # <--- Include
 app.include_router(events.router) # <--- Include Events
 app.include_router(finance.router) # <--- Include Finance
+app.include_router(admin.router)
+
 
 
 # ====== 1️⃣ TẠO BẢNG MYSQL (NẾU CÓ) ======

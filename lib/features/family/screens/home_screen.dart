@@ -12,6 +12,8 @@ import '../../auth/services/auth_service.dart';
 import '../../member/repositories/member_repository.dart';
 import '../models/family_model.dart';
 import '../services/family_api_service.dart';
+import '../../admin/screens/admin_dashboard_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -443,8 +445,17 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.shield_outlined,
               text: 'Quản trị',
               textColor: AppColors.textPrimary,
-              onTap: () => setState(() => _showRoleMenu = false),
-            ),
+              onTap: () {
+                setState(() => _showRoleMenu = false);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (ctx) => AdminDashboardScreen(
+                      familyId: _currentFamily?.id,
+                    ),
+                  ),
+                );
+              },            ),
              // Mục chỉnh sửa thông tin gia phả dành cho Admin/Owner
             if (isAdmin && _currentFamily != null) ...[
               const Divider(height: 1, color: AppColors.divider),
@@ -648,7 +659,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 if (sheetCtx.mounted) {
                                   Navigator.pop(sheetCtx);
                                 }
-                                if (mounted) {
+                                if (mounted && updated != null) {
                                   setState(() {
                                     _currentFamily = updated;
                                     final idx = _myFamilies.indexWhere((f) => f.id == updated.id);

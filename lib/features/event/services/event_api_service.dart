@@ -162,6 +162,41 @@ class EventApiService {
     }
   }
 
+  /// Phê duyệt sự kiện
+  static Future<bool> approveEvent(String eventId) async {
+    try {
+      final origin = Uri.parse(baseUrl).origin;
+      final uri = Uri.parse('$origin/api/flutter/events/$eventId/approve');
+      final headers = await _getHeaders();
+
+      final response = await http.patch(uri, headers: headers).timeout(
+        const Duration(seconds: 15),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[EventApiService] approveEvent error: $e');
+      return false;
+    }
+  }
+
+  /// Từ chối sự kiện
+  static Future<bool> rejectEvent(String eventId) async {
+    try {
+      final origin = Uri.parse(baseUrl).origin;
+      final uri = Uri.parse('$origin/api/flutter/events/$eventId/reject');
+      final headers = await _getHeaders();
+
+      final response = await http.patch(uri, headers: headers).timeout(
+        const Duration(seconds: 15),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[EventApiService] rejectEvent error: $e');
+      return false;
+    }
+  }
   /// Kích hoạt đồng bộ sự kiện sinh nhật & ngày giỗ thủ công
   static Future<bool> syncEvents(int familyId) async {
     try {

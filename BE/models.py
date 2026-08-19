@@ -74,6 +74,8 @@ class Member(Base):
     occupation = Column(String(100), nullable=True)
     generation = Column(Integer, nullable=True)
     lunar_date_of_death = Column(String(100), nullable=True)
+    status = Column(String(20), default="approved")  # approved, pending, rejected
+    requires_approval = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, nullable=True)
 
     # Relationships
@@ -138,6 +140,8 @@ class Event(Base):
     creator_id = Column(Integer, nullable=True)
     is_notified = Column(Integer, default=0)
     is_auto_generated = Column(Integer, default=0)  # 1 = tự động sinh từ Member, 0 = người dùng tạo
+    status = Column(String(20), default="approved")  # approved, pending, rejected
+    requires_approval = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, nullable=True)
     updated_at = Column(TIMESTAMP, nullable=True)
 
