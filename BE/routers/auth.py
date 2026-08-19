@@ -42,6 +42,7 @@ class RegisterRequest(BaseModel):
     date_of_birth: Optional[str] = None
     place_of_birth: Optional[str] = None
     email: str
+    phone_number: Optional[str] = None
     cccd: Optional[str] = None
     avatar_url: Optional[str] = None
     role: Optional[str] = "member"
@@ -54,6 +55,7 @@ class ProfileUpdateRequest(BaseModel):
     date_of_birth: Optional[str] = None
     place_of_birth: Optional[str] = None
     email: Optional[str] = None
+    phone_number: Optional[str] = None
     cccd: Optional[str] = None
     avatar_url: Optional[str] = None
 
@@ -82,11 +84,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def parse_date(date_str: Optional[str]) -> Optional[date]:
-    if not date_str:
+    if not date_str or not str(date_str).strip():
         return None
     for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
-            return datetime.strptime(date_str.strip(), fmt).date()
+            return datetime.strptime(str(date_str).strip(), fmt).date()
         except ValueError:
             pass
     return None
@@ -125,6 +127,7 @@ def user_to_dict(user: User) -> dict:
         "date_of_birth": format_date(user.date_of_birth),
         "place_of_birth": user.place_of_birth,
         "email": user.email,
+        "phone_number": getattr(user, 'phone_number', '') or '',
         "cccd": user.cccd,
         "avatar_url": user.avatar_url,
         "role": user.role,
@@ -169,58 +172,70 @@ def get_current_user(
 # =====================
 @router.post("/register")
 def register(data: RegisterRequest, db: Session = Depends(get_db)):
-    # 1. Kiểm tra username đã tồn tại chưa
-    existing_username = db.query(User).filter(User.username == data.username.strip()).first()
-    if existing_username:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên đăng nhập đã được sử dụng")
+    try:
+        # 1. Kiểm tra username đã tồn tại chưa
+        existing_username = db.query(User).filter(User.username == data.username.strip()).first()
+        if existing_username:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên đăng nhập đã được sử dụng")
 
-    # 2. Kiểm tra email đã tồn tại chưa
-    existing_email = db.query(User).filter(User.email == data.email.strip()).first()
-    if existing_email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
+        # 2. Kiểm tra email đã tồn tại chưa
+        existing_email = db.query(User).filter(User.email == data.email.strip()).first()
+        if existing_email:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
 
-    # 3. Tạo User mới (ép quyền 'member' mặc định)
-    new_user = User(
-        username=data.username.strip(),
-        password_hash=hash_password(data.password),
-        first_name=data.first_name.strip(),
-        last_name=data.last_name.strip() if data.last_name else None,
-        gender=_gender_to_db(data.gender),
-        date_of_birth=parse_date(data.date_of_birth),
-        place_of_birth=data.place_of_birth,
-        email=data.email.strip(),
-        cccd=data.cccd.strip() if data.cccd else None,
-        avatar_url=data.avatar_url,
-        role="member",  # Luôn mặc định là member
-    )
+        # 3. Tạo User mới (ép quyền 'member' mặc định)
+        new_user = User(
+            username=data.username.strip(),
+            password_hash=hash_password(data.password),
+            first_name=data.first_name.strip(),
+            last_name=data.last_name.strip() if data.last_name else None,
+            gender=_gender_to_db(data.gender),
+            date_of_birth=parse_date(data.date_of_birth),
+            place_of_birth=data.place_of_birth.strip() if data.place_of_birth else None,
+            email=data.email.strip(),
+            phone_number=data.phone_number.strip() if getattr(data, 'phone_number', None) else None,
+            cccd=data.cccd.strip() if data.cccd else None,
+            avatar_url=data.avatar_url,
+            role="member",  # Luôn mặc định là member
+            created_at=datetime.now(),
+        )
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
 
-    # 4. Tạo token phiên làm việc
-    token = serializer.dumps({"user_id": new_user.id, "role": new_user.role})
+        # 4. Tạo token phiên làm việc
+        token = serializer.dumps({"user_id": new_user.id, "role": new_user.role})
 
-    response_data = {
-        "success": True,
-        "message": "Đăng ký tài khoản thành công",
-        "access_token": token,
-        "token_type": "bearer",
-        "user": user_to_dict(new_user),
-    }
+        response_data = {
+            "success": True,
+            "message": "Đăng ký tài khoản thành công",
+            "access_token": token,
+            "token_type": "bearer",
+            "user": user_to_dict(new_user),
+        }
 
-    response = JSONResponse(content=response_data, status_code=status.HTTP_201_CREATED)
-    response.set_cookie(
-        key="user_session",
-        value=token,
-        httponly=True,
-        max_age=SESSION_EXPIRE_SECONDS,
-        samesite="lax",
-        secure=False,
-        path="/",
-    )
-    return response
-
+        response = JSONResponse(content=response_data, status_code=status.HTTP_201_CREATED)
+        response.set_cookie(
+            key="user_session",
+            value=token,
+            httponly=True,
+            max_age=SESSION_EXPIRE_SECONDS,
+            samesite="lax",
+            secure=False,
+            path="/",
+        )
+        return response
+    except HTTPException:
+            raise
+    except Exception as e:
+            db.rollback()
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Lỗi máy chủ khi đăng ký: {str(e)}",
+        )
 
 # =====================
 # 🔑 API Đăng nhập (Login)

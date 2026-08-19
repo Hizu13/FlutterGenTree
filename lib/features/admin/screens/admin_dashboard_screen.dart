@@ -409,6 +409,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           icon: Icons.event_available_outlined,
           title: 'Duyệt sự kiện',
           subtitle: '${_stats.pendingEvents} sự kiện đang chờ duyệt',
+          badgeCount: _stats.pendingEvents,
           onTap: () async {
             if (_activeFamilyId != null) {
               await Navigator.push(
@@ -428,6 +429,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           icon: Icons.how_to_reg_outlined,
           title: 'Duyệt thành viên vào gia phả',
           subtitle: '${_stats.newJoins} yêu cầu gia nhập chờ duyệt',
+          badgeCount: _stats.newJoins,
           onTap: () async {
             if (_activeFamilyId != null) {
               await Navigator.push(
@@ -447,6 +449,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           icon: Icons.fact_check_outlined,
           title: 'Duyệt thu/chi quỹ',
           subtitle: '${_stats.pendingTransactions} giao dịch quỹ chờ duyệt',
+          badgeCount: _stats.pendingTransactions,
           onTap: () async {
             if (_activeFamilyId != null) {
               await Navigator.push(
@@ -461,7 +464,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 10),
 
-        // 2. Thêm thành viên
+        // 4. Thêm thành viên
         _buildActionTile(
           icon: Icons.person_add_alt_1_rounded,
           title: 'Thêm thành viên',
@@ -483,7 +486,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 10),
 
-        // 3. Ghi thu/chi quỹ
+        // 5. Ghi thu/chi quỹ
         _buildActionTile(
           icon: Icons.account_balance_wallet_rounded,
           title: 'Ghi thu/chi quỹ',
@@ -503,7 +506,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 10),
 
-        // 4. Phân quyền thành viên
+        // 6. Phân quyền thành viên
         _buildActionTile(
           icon: Icons.shield_rounded,
           title: 'Phân quyền thành viên',
@@ -521,12 +524,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 10),
 
-        // 5. Import gia phả bằng file Excel
+        // 7. Import gia phả bằng file Excel
         _buildActionTile(
-          icon: Icons.table_chart_rounded,
-          iconColor: const Color(0xFF1E7E34),
-          title: 'Import gia phả bằng file Excel',
-          subtitle: 'Nhập dữ liệu thành viên từ tệp Excel (.xlsx, .xls)',
+          icon: Icons.file_upload_outlined,
+          title: 'Nhập gia phả bằng file Excel',
+          subtitle: 'Tải lên tệp .xlsx hoặc .xls',
+          iconColor: const Color(0xFF2E7D32),
           onTap: _handleImportExcel,
         ),
       ],
@@ -538,6 +541,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    int? badgeCount,
     Color? iconColor,
   }) {
     return InkWell(
@@ -584,6 +588,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ],
               ),
             ),
+            if (badgeCount != null && badgeCount > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.badgeRed,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
             const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
           ],
         ),

@@ -163,12 +163,43 @@ class _NoFamilyWelcomeScreenState extends State<NoFamilyWelcomeScreen> {
     setState(() => _isJoining = true);
 
     try {
-      final joinedFamily = await FamilyApiService.joinFamily(
+      final result = await FamilyApiService.joinFamily(
         joinCode: code,
         branchType: _selectedBranch,
       );
 
       if (!mounted) return;
+
+      if (result.requiresApproval || result.family == null) {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 24),
+                      SizedBox(width: 8),
+                      Text('Chờ phê duyệt', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: Text(
+                    result.message,
+                    style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                  ),
+                  actions: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Đã hiểu', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+              return;
+            }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -177,7 +208,7 @@ class _NoFamilyWelcomeScreenState extends State<NoFamilyWelcomeScreen> {
               const Icon(Icons.check_circle_rounded, color: Colors.white),
               const SizedBox(width: 10),
               Expanded(
-                child: Text('Đã tham gia gia phả "${joinedFamily.name}"!'),
+                child: Text('Đã tham gia gia phả "${result.family!.name}"!'),
               ),
             ],
           ),

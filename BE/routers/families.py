@@ -86,8 +86,17 @@ def _family_to_dict(family: Family, db: Session, current_user_id: Optional[int] 
         except Exception:
             created_at_str = str(family.created_at)
 
-    # Đếm số lượng thành viên trong gia phả
-    member_count = db.query(Member).filter(Member.family_id == family.id).count()
+    # Đếm số lượng thành viên chính thức trong gia phả
+    from sqlalchemy import or_
+    member_count = (
+        db.query(Member)
+        .filter(
+            Member.family_id == family.id,
+            or_(Member.status == "approved", Member.status.is_(None)),
+            Member.requires_approval != True
+        )
+        .count()
+    )
 
     # Xác định vai trò của user trong gia phả này
     user_role = "member"
@@ -97,7 +106,12 @@ def _family_to_dict(family: Family, db: Session, current_user_id: Optional[int] 
         else:
             member_record = (
                 db.query(Member)
-                .filter(Member.family_id == family.id, Member.user_id == current_user_id)
+                .filter(
+                    Member.family_id == family.id,
+                    Member.user_id == current_user_id,
+                    or_(Member.status == "approved", Member.status.is_(None)),
+                    Member.requires_approval != True
+                )
                 .first()
             )
             if member_record and member_record.role:
@@ -152,7 +166,7 @@ def get_my_families(
                 m.last_name = current_user.last_name
             if current_user.avatar_url:
                 m.avatar_url = current_user.avatar_url
-            if current_user.phone_number:
+            if getattr(current_user, 'phone_number', None):
                 m.phone_number = current_user.phone_number
             if current_user.date_of_birth:
                 m.date_of_birth = current_user.date_of_birth
@@ -176,7 +190,14 @@ def get_my_families(
         conditions.append(Member.phone_number == current_user.username)
         
     from sqlalchemy import or_
-    member_family_ids = member_family_query.filter(or_(*conditions)).distinct().all()
+    member_family_ids = (
+        member_family_query.filter(
+            or_(*conditions),
+            or_(Member.status == "approved", Member.status.is_(None))
+        )
+        .distinct()
+        .all()
+    )
     joined_ids = {item[0] for item in member_family_ids if item[0] is not None}
 
     all_family_ids = owned_ids.union(joined_ids)
@@ -347,15 +368,22 @@ def join_family(
                 existing_member.place_of_birth = current_user.place_of_birth
             if current_user.avatar_url:
                 existing_member.avatar_url = current_user.avatar_url
-            if current_user.phone_number:
+            if getattr(current_user, 'phone_number', None):
                 existing_member.phone_number = current_user.phone_number
             if getattr(current_user, 'address', None):
                 existing_member.permanent_address = current_user.address
             db.commit()
             db.refresh(existing_member)
+    # Nếu user là chủ gia phả -> Duyệt tự động luôn
+    is_owner = (family.owner_id == current_user.id)
 
     if existing_member:
         # Đồng bộ lại Neo4j với thông tin mới nhất
+        if is_owner or existing_member.status == "approved":
+            existing_member.status = "approved"
+            existing_member.requires_approval = False
+            db.commit()
+
         background_tasks.add_task(
             _safe_sync_to_graph,
             id=existing_member.id,
@@ -365,17 +393,32 @@ def join_family(
         )
         return {
             "success": True,
-            "message": f"Bạn đã là thành viên của gia phả '{family.name}' (Đã đồng bộ thông tin cá nhân theo CCCD)",
-            "data": _family_to_dict(family, db, current_user.id),
+                "requires_approval": False,
+                "message": f"Bạn đã là thành viên chính thức của gia phả '{family.name}'",
+                "data": _family_to_dict(family, db, current_user.id),
+            "member_id": existing_member.id,
+        }
+    else:
+        # Đang chờ duyệt
+        existing_member.status = "pending"
+        existing_member.requires_approval = True
+        db.commit()
+        return {
+            "success": True,
+            "requires_approval": True,
+            "message": f"Yêu cầu tham gia gia phả '{family.name}' của bạn đang chờ quản trị viên phê duyệt.",
+            "data": None,
             "member_id": existing_member.id,
         }
 
-    # 3. Nếu chưa có thành viên nào trong gia phả khớp CCCD, tạo bản ghi thành viên mới
+    # 3. Nếu chưa có bản ghi, tạo bản ghi thành viên mới ở trạng thái CHỜ DUYỆT (pending)
     user_gender_db = "male"
     if current_user.gender:
         user_gender_db = "female" if current_user.gender in ["Nữ", "female"] else "male"
 
-    role = "admin" if family.owner_id == current_user.id else "member"
+    role = "admin" if is_owner else "member"
+    initial_status = "approved" if is_owner else "pending"
+    initial_requires_approval = not is_owner
 
     new_member = Member(
         family_id=family.id,
@@ -385,9 +428,12 @@ def join_family(
         last_name=current_user.last_name or "",
         gender=user_gender_db,
         role=role,
+        status=initial_status,
+        requires_approval=initial_requires_approval,
         date_of_birth=current_user.date_of_birth,
         place_of_birth=current_user.place_of_birth,
         avatar_url=current_user.avatar_url,
+        phone_number=getattr(current_user, 'phone_number', None),
         biography=f"Nhánh: {data.branch_type}" if data.branch_type else None,
         created_at=datetime.now(),
     )
@@ -397,18 +443,27 @@ def join_family(
     db.refresh(new_member)
 
     # Đồng bộ sang Neo4j ở Background
-    background_tasks.add_task(
-        _safe_sync_to_graph,
-        id=new_member.id,
-        full_name=new_member.full_name,
-        gender=new_member.gender,
-        family_id=family.id,
-    )
+    if is_owner:
+            background_tasks.add_task(
+                _safe_sync_to_graph,
+                id=new_member.id,
+                full_name=new_member.full_name,
+                gender=new_member.gender,
+                family_id=family.id,
+            )
+            return {
+                "success": True,
+                "requires_approval": False,
+                "message": f"Tham gia gia phả '{family.name}' thành công",
+                "data": _family_to_dict(family, db, current_user.id),
+                "member_id": new_member.id,
+            }
 
     return {
         "success": True,
-        "message": f"Tham gia gia phả '{family.name}' thành công",
-        "data": _family_to_dict(family, db, current_user.id),
+        "requires_approval": True,
+        "message": f"Đã gửi yêu cầu tham gia gia phả '{family.name}'. Vui lòng chờ quản trị viên phê duyệt!",
+        "data": None,
         "member_id": new_member.id,
     }
 
