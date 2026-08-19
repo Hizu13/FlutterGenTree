@@ -13,6 +13,7 @@ class AdminDashboardStats {
   final int pendingApprovals;
   final int pendingTransactions;
   final int pendingEvents;
+  final int pendingMembers;
   final int newJoins;
   final double totalBalance;
   final String formattedBalance;
@@ -23,7 +24,8 @@ class AdminDashboardStats {
     required this.totalMembers,
     required this.pendingApprovals,
     required this.pendingTransactions,
-    required this.pendingEvents,
+    required this.pendingEvents,    
+    required this.pendingMembers,
     required this.newJoins,
     required this.totalBalance,
     required this.formattedBalance,
@@ -37,6 +39,7 @@ class AdminDashboardStats {
       pendingApprovals: json['pending_approvals'] ?? 0,
       pendingTransactions: json['pending_transactions'] ?? 0,
       pendingEvents: json['pending_events'] ?? 0,
+      pendingMembers: json['pending_members'] ?? (json['new_joins'] ?? 0),
       newJoins: json['new_joins'] ?? 0,
       totalBalance: (json['total_balance'] as num?)?.toDouble() ?? 0.0,
       formattedBalance: json['formatted_balance'] ?? '0 đ',
@@ -51,6 +54,7 @@ class AdminDashboardStats {
       pendingApprovals: 0,
       pendingTransactions: 0,
       pendingEvents: 0,
+      pendingMembers: 0,
       newJoins: 0,
       totalBalance: 0.0,
       formattedBalance: '0 đ',
@@ -101,8 +105,16 @@ class PendingItemModel {
 
 class AdminApiService {
   static String get _baseUrl {
-    final host = ApiConfig.baseUrl.replaceAll('/api/members', '').replaceAll('/api/flutter/members', '');
-    return '$host/api/flutter/admin';
+    // Strip known API path suffixes and trailing slash to get raw origin
+    var host = ApiConfig.baseUrl
+        .replaceAll('/api/flutter/members/', '')
+        .replaceAll('/api/flutter/members', '')
+        .replaceAll('/api/members/', '')
+        .replaceAll('/api/members', '');
+    // Remove trailing slash
+    while (host.endsWith('/')) {
+      host = host.substring(0, host.length - 1);
+    }    return '$host/api/flutter/admin';
   }
 
   static Future<Map<String, String>> _getHeaders() async {

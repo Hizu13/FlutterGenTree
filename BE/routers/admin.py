@@ -58,15 +58,23 @@ def get_admin_dashboard_stats(
     if not family:
         raise HTTPException(status_code=404, detail="Không tìm thấy gia phả")
 
-    # 1. Tổng thành viên
-    total_members = db.query(func.count(Member.id)).filter(Member.family_id == family_id).scalar() or 0
-
-    # 2. Các khoản thu/chi chờ duyệt
-    pending_txs = (
-        db.query(func.count(Transaction.id))
+   # 1. Tổng thành viên chính thức
+    total_members = (
+        db.query(func.count(Member.id))
         .filter(
-            Transaction.family_id == family_id,
-            (Transaction.status == "pending") | (Transaction.requires_approval == True)
+            Member.family_id == family_id,
+            (Member.status == "approved") | (Member.status.is_(None)),
+            Member.requires_approval != True
+        )
+        .scalar()
+        or 0
+    )
+    # 2. Thành viên gia nhập mới chờ duyệt
+    pending_members = (
+        db.query(func.count(Member.id))
+        .filter(
+             Member.family_id == family_id,
+            (Member.status == "pending") | (Member.requires_approval == True)
         )
         .scalar()
         or 0
@@ -77,26 +85,22 @@ def get_admin_dashboard_stats(
         db.query(func.count(Event.id))
         .filter(
             Event.family_id == family_id,
-            Event.status == "pending"
+            (Event.status == "pending") | (Event.requires_approval == True)
         )
         .scalar()
         or 0
     )
 
-    # 4. Thành viên gia nhập mới (trong 30 ngày qua)
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    new_joins = (
-        db.query(func.count(Member.id))
+    # 4. Các khoản thu/chi chờ duyệt
+    pending_txs = (
+        db.query(func.count(Transaction.id))
         .filter(
-            Member.family_id == family_id,
-            Member.created_at >= thirty_days_ago
+            Transaction.family_id == family_id,
+            (Transaction.status == "pending") | (Transaction.requires_approval == True)
         )
         .scalar()
         or 0
     )
-    if new_joins == 0:
-        # Fallback nếu created_at rỗng
-        new_joins = min(total_members, 5)
 
     # 5. Tổng quỹ số dư
     total_income = (
@@ -135,18 +139,20 @@ def get_admin_dashboard_stats(
     total_balance = (total_income + total_merit) - total_expense
     formatted_balance = _format_currency_short(total_balance)
 
-    total_pending = pending_txs + pending_events
+    # Tổng số lượng cần phải xử lý của admin
+    total_pending = pending_members + pending_events + pending_txs
 
     return {
         "family_id": family_id,
         "family_name": family.name,
         "total_members": total_members,
-        "pending_approvals": total_pending if total_pending > 0 else 5, # Demo default fallback
+        "pending_approvals": total_pending,
+        "pending_members": pending_members,        
         "pending_transactions": pending_txs,
         "pending_events": pending_events,
-        "new_joins": new_joins if new_joins > 0 else 5,
+        "new_joins": pending_members,
         "total_balance": total_balance,
-        "formatted_balance": formatted_balance if total_balance != 0 else "10,5 tr",
+        "formatted_balance": formatted_balance,
         "raw_balance": total_balance,
     }
 
@@ -289,12 +295,13 @@ def get_admin_members_by_status(
     query = db.query(Member).filter(Member.family_id == family_id)
     if status == "pending":
         query = query.filter(
-            (Member.status == "pending") | (Member.requires_approval == True)
-        )
+            Member.status == "pending",
+            Member.requires_approval == True        )
     else:
         query = query.filter(
-            (Member.status == "approved") & (Member.requires_approval == False)
-        )
+            (Member.status == "approved") | (Member.status.is_(None))
+        ).filter(
+            Member.requires_approval != True        )
 
     members = query.order_by(Member.id.desc()).all()
     results = []

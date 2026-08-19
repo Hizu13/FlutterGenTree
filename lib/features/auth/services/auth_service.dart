@@ -38,9 +38,16 @@ class AuthService {
         }
         return authResponse;
       } else {
-        final errorData = json.decode(utf8.decode(response.bodyBytes));
-        final msg = errorData['detail'] ?? errorData['message'] ?? 'Đăng nhập thất bại (${response.statusCode})';
-        throw Exception(msg);
+        String msg = 'Đăng nhập thất bại (${response.statusCode})';
+        try {
+          final errorData = json.decode(utf8.decode(response.bodyBytes));
+          if (errorData is Map) {
+            msg = errorData['detail'] ?? errorData['message'] ?? msg;
+          }
+        } catch (_) {
+          final bodyStr = utf8.decode(response.bodyBytes).trim();
+          if (bodyStr.isNotEmpty) msg = bodyStr;
+        }        throw Exception(msg);
       }
     } catch (e) {
       if (kDebugMode) {
@@ -76,9 +83,16 @@ class AuthService {
         }
         return authResponse;
       } else {
-        final errorData = json.decode(utf8.decode(response.bodyBytes));
-        final msg = errorData['detail'] ?? errorData['message'] ?? 'Đăng ký thất bại (${response.statusCode})';
-        throw Exception(msg);
+        String msg = 'Đăng ký thất bại (${response.statusCode})';
+        try {
+          final errorData = json.decode(utf8.decode(response.bodyBytes));
+          if (errorData is Map) {
+            msg = errorData['detail'] ?? errorData['message'] ?? msg;
+          }
+        } catch (_) {
+          final bodyStr = utf8.decode(response.bodyBytes).trim();
+          if (bodyStr.isNotEmpty) msg = bodyStr;
+        }        throw Exception(msg);
       }
     } catch (e) {
       if (kDebugMode) {

@@ -118,7 +118,7 @@ class FamilyApiService {
   }
 
   /// Tham gia gia phả bằng mã join_code
-  static Future<FamilyModel> joinFamily({
+  static Future<FamilyJoinResult> joinFamily({
     required String joinCode,
     String branchType = 'Họ nội',
   }) async {
@@ -142,11 +142,27 @@ class FamilyApiService {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+                final bool requiresApproval = data['requires_approval'] == true || data['data'] == null;
+
+        if (requiresApproval) {
+          final msg = data['message'] ?? 'Yêu cầu tham gia gia phả đã được gửi, vui lòng chờ quản trị viên phê duyệt!';
+          return FamilyJoinResult(
+            success: true,
+            requiresApproval: true,
+            message: msg,
+            family: null,
+          );
+        }
+
         final familyJson = data['data'] as Map<String, dynamic>;
         final joinedFamily = FamilyModel.fromJson(familyJson);
         await saveCurrentFamily(joinedFamily);
-        return joinedFamily;
-      } else {
+        return FamilyJoinResult(
+          success: true,
+          requiresApproval: false,
+          message: data['message'] ?? 'Tham gia gia phả thành công!',
+          family: joinedFamily,
+        );      } else {
         final errorData = json.decode(utf8.decode(response.bodyBytes));
         final msg = errorData['detail'] ?? errorData['message'] ?? 'Tham gia gia phả thất bại (${response.statusCode})';
         throw Exception(msg);
@@ -228,4 +244,18 @@ class FamilyApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_currentFamilyKey);
   }
+}
+
+class FamilyJoinResult {
+  final bool success;
+  final bool requiresApproval;
+  final String message;
+  final FamilyModel? family;
+
+  FamilyJoinResult({
+    required this.success,
+    required this.requiresApproval,
+    required this.message,
+    this.family,
+  });
 }

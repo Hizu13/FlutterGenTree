@@ -143,12 +143,25 @@ _person_to_flutter = _member_to_flutter
 def get_all_members(
     request: Request,
     family_id: Optional[int] = Query(None, description="Lọc theo gia phả (tùy chọn)"),
+    status: Optional[str] = Query("approved", description="Lọc theo trạng thái phê duyệt (mặc định approved)"),
     db: Session = Depends(get_db),
 ):
-    """Lấy toàn bộ danh sách thành viên. Nếu có family_id thì lọc theo gia phả."""
+    """Lấy danh sách thành viên chính thức (approved) của gia phả."""
+    from sqlalchemy import or_    
     query = db.query(Member)
     if family_id:
         query = query.filter(Member.family_id == family_id)
+    if status == "approved":
+        query = query.filter(
+            or_(Member.status == "approved", Member.status.is_(None)),
+            Member.requires_approval != True
+        )
+    elif status == "pending":
+        query = query.filter(
+            or_(Member.status == "pending", Member.requires_approval == True)
+        )
+    elif status != "all":
+        query = query.filter(Member.status == status)
 
     member = query.all()
     return [_member_to_flutter(db, p, request) for p in members]

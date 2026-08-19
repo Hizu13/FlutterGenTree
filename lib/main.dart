@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'config/app_color.dart';
 import 'features/family/screens/home_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'config/api_config.dart';
+import 'config/app_init.dart';
 
-void main() {
+Future<void> main() async {
+  await initializeApp();
   runApp(const MyApp());
 }
 
