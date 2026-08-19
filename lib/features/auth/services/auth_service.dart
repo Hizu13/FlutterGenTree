@@ -169,6 +169,33 @@ class AuthService {
       return null;
     }
   }
+  
+  /// Lấy thông tin user mới nhất từ backend API và cập nhật cache
+  static Future<UserModel?> fetchProfile() async {
+    try {
+      final token = await getToken();
+      if (token == null) return getSavedUser();
+      final origin = Uri.parse(baseUrl).origin;
+      final url = Uri.parse('$origin/api/auth/me');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        if (data['user'] != null) {
+          final user = UserModel.fromJson(data['user'] as Map<String, dynamic>);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_userKey, json.encode(user.toJson()));
+          return user;
+        }
+      }
+    } catch (_) {}
+    return getSavedUser();
+  }
 
   /// Kiểm tra xem người dùng đã đăng nhập trước đó hay chưa
   static Future<bool> isLoggedIn() async {

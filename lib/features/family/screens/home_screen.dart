@@ -41,11 +41,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadCurrentUser() async {
-    final user = await AuthService.getSavedUser();
-    if (mounted && user != null) {
+    final cached = await AuthService.getSavedUser();
+    if (mounted && cached != null) {
       setState(() {
-        _currentUser = user;
+        _currentUser = cached;
       });
+    }
+    final fresh = await AuthService.fetchProfile();
+    if (mounted && fresh != null) {
+      setState(() {
+        _currentUser = fresh;      });
     }
   }
 
@@ -361,10 +366,24 @@ class _HomeScreenState extends State<HomeScreen> {
               border: Border.all(color: Colors.white, width: 2),
               color: AppColors.surfaceWarm,
             ),
-            child: const Icon(
-              Icons.person_outline_rounded,
+              child: ClipOval(
+              child: _currentUser?.resolvedAvatarUrl != null &&
+                      _currentUser!.resolvedAvatarUrl!.isNotEmpty
+                  ? Image.network(
+                      _currentUser!.resolvedAvatarUrl!,
+                      fit: BoxFit.cover,
+                      width: 48,
+                      height: 48,
+                      errorBuilder: (context, error, stack) => const Icon(              Icons.person_outline_rounded,
               color: AppColors.primaryDark,
               size: 28,
+              ),
+                    )
+                  : const Icon(
+                      Icons.person_outline_rounded,
+                      color: AppColors.primaryDark,
+                      size: 28,
+                    ),
             ),
           ),
           const SizedBox(width: 14),
