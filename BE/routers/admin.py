@@ -17,7 +17,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import openpyxl
-
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from fastapi.responses import Response
 from db.mysql_connection import get_db
 from models import Family, Member, Transaction, Event, User, Relationship
 from routers.auth import get_current_user
@@ -490,8 +492,114 @@ def change_member_role(
 
 
 # ==============================================================================
-# 4. API IMPORT GIA PHẢ BẰNG FILE EXCEL (.XLSX / .XLS)
+# 4. API TẢI FILE EXCEL MẪU CHUẨN & IMPORT GIA PHẢ
 # ==============================================================================
+@router.get("/template-excel")
+def download_genealogy_excel_template():
+    """
+    Tạo và tải về tệp Excel mẫu (.xlsx) có cấu trúc bảng chuẩn để nhập gia phả.
+    Bao gồm các cột hướng dẫn, định dạng và dữ liệu mẫu ví dụ.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "DanhSachThanhVien"
+
+    # Header columns
+    headers = [
+        "STT (*)",
+        "Họ và tên (*)",
+        "Giới tính (*)",
+        "Đời thứ",
+        "Ngày sinh",
+        "Nơi sinh",
+        "Số CCCD / CMND",
+        "Số điện thoại",
+        "Nghề nghiệp",
+        "Địa chỉ thường trú",
+        "Tình trạng",
+        "Ngày mất",
+        "Nơi an táng",
+        "STT hoặc Tên Cha (Bố)",
+        "STT hoặc Tên Mẹ",
+        "Tiểu sử / Ghi chú",
+    ]
+
+    # Title
+    ws.merge_cells("A1:P1")
+    title_cell = ws["A1"]
+    title_cell.value = "BẢNG MẪU NHẬP DỮ LIỆU THÀNH VIÊN GIA PHẢ"
+    title_cell.font = Font(name="Arial", size=14, bold=True, color="FFFFFF")
+    title_cell.fill = PatternFill(start_color="4E342E", end_color="4E342E", fill_type="solid")
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 35
+
+    # Subtitle / Notes
+    ws.merge_cells("A2:P2")
+    sub_cell = ws["A2"]
+    sub_cell.value = "Lưu ý: Cột (*) là thông tin quan trọng. Cột Cha/Mẹ có thể điền STT trong file này (1, 2, 3...) hoặc Họ tên chính xác để tự động liên kết."
+    sub_cell.font = Font(name="Arial", size=10, italic=True, color="5D4037")
+    sub_cell.fill = PatternFill(start_color="EFEBE9", end_color="EFEBE9", fill_type="solid")
+    sub_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[2].height = 25
+
+    # Headers styling
+    header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    header_bg = PatternFill(start_color="6D4C41", end_color="6D4C41", fill_type="solid")
+    thin_border = Border(
+        left=Side(style="thin", color="BCAAA4"),
+        right=Side(style="thin", color="BCAAA4"),
+        top=Side(style="thin", color="BCAAA4"),
+        bottom=Side(style="thin", color="BCAAA4"),
+    )
+
+    ws.row_dimensions[3].height = 28
+    for col_num, header_title in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col_num, value=header_title)
+        cell.font = header_font
+        cell.fill = header_bg
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = thin_border
+
+    # Sample rows (Dữ liệu mẫu chuẩn)
+    sample_data = [
+        [1, "Lê Văn Khởi", "Nam", 1, "10/05/1920", "Hà Nội", "", "", "Nông nghiệp", "Hà Nội", "Đã mất", "15/08/1990", "Nghĩa trang quê nhà", "", "", "Cụ Tổ đời thứ nhất"],
+        [2, "Nguyễn Thị Sen", "Nữ", 1, "12/08/1923", "Hà Tây", "", "", "Nội trợ", "Hà Nội", "Đã mất", "20/10/1995", "Nghĩa trang quê nhà", "", "", "Vợ cụ Lê Văn Khởi"],
+        [3, "Lê Văn An", "Nam", 2, "20/01/1950", "Hà Nội", "001050123456", "0912345678", "Kỹ sư", "Cầu Giấy, Hà Nội", "Còn sống", "", "", 1, 2, "Con trai trưởng cụ Khởi"],
+        [4, "Trần Thị Mai", "Nữ", 2, "15/03/1955", "Bắc Ninh", "001055654321", "0987654321", "Bác sĩ", "Cầu Giấy, Hà Nội", "Còn sống", "", "", "", "", "Vợ ông Lê Văn An"],
+        [5, "Lê Văn Hùng", "Nam", 3, "01/01/1980", "Hà Nội", "001080112233", "0901234567", "Lập trình viên", "Hà Nội", "Còn sống", "", "", 3, 4, "Cháu đích tôn"],
+    ]
+
+    for row_idx, row_vals in enumerate(sample_data, 4):
+        ws.row_dimensions[row_idx].height = 22
+        for col_num, val in enumerate(row_vals, 1):
+            cell = ws.cell(row=row_idx, column=col_num, value=val)
+            cell.font = Font(name="Arial", size=10)
+            cell.alignment = Alignment(
+                horizontal="center" if col_num in [1, 3, 4, 5, 11, 12, 14, 15] else "left",
+                vertical="center",
+            )
+            cell.border = thin_border
+
+    # Auto column width
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 13)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    headers_resp = {
+        "Content-Disposition": 'attachment; filename="Mau_Nhap_Gia_Pha.xlsx"',
+    }
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers_resp,
+    )
+
+
 @router.post("/import-excel")
 async def import_genealogy_excel(
     family_id: int = Query(..., description="ID dòng họ cần import"),
@@ -515,8 +623,32 @@ async def import_genealogy_excel(
     if not rows or len(rows) < 2:
         raise HTTPException(status_code=400, detail="Tệp Excel không có dữ liệu thành viên (cần ít nhất 1 dòng tiêu đề và 1 dòng dữ liệu)")
 
-    # 1. Chuẩn hóa tiêu đề cột
-    header = [str(cell).strip().lower() if cell is not None else "" for cell in rows[0]]
+    # 1. Tìm dòng tiêu đề (Header Row) tự động
+    header_row_idx = -1
+    for idx, row in enumerate(rows):
+        if not row:
+            continue
+        row_strs = [str(c).lower().strip() for c in row if c is not None]
+        row_str_combined = " ".join(row_strs)
+        if any(w in row_str_combined for w in ["họ và tên", "họ tên", "full_name", "fullname"]) and any(w in row_str_combined for w in ["giới tính", "gender", "sex"]):
+            header_row_idx = idx
+            break
+
+    # Fallback nếu không tìm thấy dòng cả họ tên + giới tính
+    if header_row_idx == -1:
+        for idx, row in enumerate(rows):
+            if not row:
+                continue
+            row_strs = [str(c).lower().strip() for c in row if c is not None]
+            row_str_combined = " ".join(row_strs)
+            if "họ và tên" in row_str_combined or "họ tên" in row_str_combined or "full_name" in row_str_combined:
+                header_row_idx = idx
+                break
+
+    if header_row_idx == -1:
+        raise HTTPException(status_code=400, detail="Tệp Excel thiếu cột 'Họ và tên' của thành viên")
+
+    header = [str(cell).strip().lower() if cell is not None else "" for cell in rows[header_row_idx]]
     
     def get_col_index(possible_names: list) -> int:
         for idx, col in enumerate(header):
@@ -525,29 +657,55 @@ async def import_genealogy_excel(
                     return idx
         return -1
 
-    name_idx = get_col_index(["họ và tên", "họ tên", "tên", "full_name", "fullname", "name"])
-    gender_idx = get_col_index(["giới tính", "gioi tinh", "gender", "sex"])
+    stt_idx = get_col_index(["stt", "mã", "id", "no", "stt (*)"])
+    name_idx = get_col_index(["họ và tên", "họ tên", "tên", "full_name", "fullname", "name", "họ và tên (*)"])
+    gender_idx = get_col_index(["giới tính", "gioi tinh", "gender", "sex", "giới tính (*)"])
+    gen_idx = get_col_index(["đời", "doi", "thế hệ", "the he", "generation", "gen", "đời thứ"])
     birth_idx = get_col_index(["ngày sinh", "ngay sinh", "năm sinh", "nam sinh", "birth", "dob"])
-    gen_idx = get_col_index(["đời", "doi", "thế hệ", "the he", "generation", "gen"])
-    alive_idx = get_col_index(["trạng thái", "con song", "còn sống", "is_alive", "alive", "mất", "qua đời"])
+    pob_idx = get_col_index(["nơi sinh", "noi sinh", "quê quán", "que quan", "place_of_birth"])
+    cccd_idx = get_col_index(["cccd", "cmnd", "căn cước", "identity", "identity_card", "số cccd / cmnd"])
     phone_idx = get_col_index(["số điện thoại", "so dien thoai", "phone", "sđt", "sdt"])
-    address_idx = get_col_index(["địa chỉ", "dia chi", "quê quán", "que quan", "address"])
-    father_idx = get_col_index(["tên cha", "cha", "bố", "father", "parent_father"])
-    mother_idx = get_col_index(["tên mẹ", "mẹ", "mother", "parent_mother"])
-    bio_idx = get_col_index(["chú thích", "ghi chú", "tieu su", "tiểu sử", "note", "bio"])
+    job_idx = get_col_index(["nghề nghiệp", "nghe nghiep", "occupation", "job", "công việc"])
+    address_idx = get_col_index(["địa chỉ", "dia chi", "thường trú", "permanent_address", "address"])
+    alive_idx = get_col_index(["tình trạng", "trạng thái", "con song", "còn sống", "is_alive", "alive", "mất", "qua đời"])
+    death_idx = get_col_index(["ngày mất", "ngay mat", "qua đời", "date_of_death", "death"])
+    pod_idx = get_col_index(["nơi an táng", "noi an tang", "mộ phần", "an táng", "place_of_death"])
+    father_idx = get_col_index(["cha", "bố", "father", "tên cha", "tên bố", "stt hoặc tên cha (bố)"])
+    mother_idx = get_col_index(["mẹ", "mother", "tên mẹ", "stt hoặc tên mẹ"])
+    bio_idx = get_col_index(["chú thích", "ghi chú", "tieu su", "tiểu sử", "note", "bio", "tiểu sử / ghi chú"])
 
     if name_idx == -1:
         raise HTTPException(status_code=400, detail="Tệp Excel thiếu cột 'Họ và tên' của thành viên")
-
+    def parse_any_date(val):
+        if not val:
+            return None
+        if isinstance(val, (datetime, date)):
+            return val if isinstance(val, date) else val.date()
+        s = str(val).strip()
+        if not s:
+            return None
+        for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except Exception:
+                pass
+        try:
+            year = int(float(s))
+            if 1800 <= year <= 2100:
+                return date(year, 1, 1)
+        except Exception:
+            pass
+        return None
     imported_members = []
-    parent_links = []  # [(child_member, father_name, mother_name)]
-
-    for row_idx, row in enumerate(rows[1:], start=2):
-        if not row or row[name_idx] is None:
+# Lưu thông tin liên kết cha mẹ: (member_obj, stt_val, raw_father_val, raw_mother_val)
+    row_links = []
+    stt_to_member = {}
+    for row in rows[header_row_idx + 1:]:
+        if not row or name_idx >= len(row) or row[name_idx] is None:
             continue
 
         raw_name = str(row[name_idx]).strip()
-        if not raw_name:
+        if not raw_name or raw_name.startswith("Lưu ý") or raw_name.startswith("BẢNG MẪU"):
             continue
 
         # Tách Họ và Tên
@@ -555,9 +713,9 @@ async def import_genealogy_excel(
         first_name = parts[-1] if parts else raw_name
         last_name = " ".join(parts[:-1]) if len(parts) > 1 else ""
 
-        # Giới tính
+        # Giới tính (Lưu vào DB dưới dạng 'male' hoặc 'female')
         gender = "male"
-        if gender_idx != -1 and row[gender_idx]:
+        if gender_idx != -1 and gender_idx < len(row) and row[gender_idx]:
             g_str = str(row[gender_idx]).strip().lower()
             if "nữ" in g_str or "nu" in g_str or "female" in g_str:
                 gender = "female"
@@ -566,45 +724,40 @@ async def import_genealogy_excel(
 
         # Thế hệ / Đời
         generation = 1
-        if gen_idx != -1 and row[gen_idx]:
+        if gen_idx != -1 and gen_idx < len(row) and row[gen_idx]:
             try:
                 generation = int(float(str(row[gen_idx]).strip()))
             except Exception:
                 generation = 1
 
-        # Ngày / Năm sinh
-        birth_date = None
-        if birth_idx != -1 and row[birth_idx]:
-            val = row[birth_idx]
-            if isinstance(val, (datetime, date)):
-                birth_date = val if isinstance(val, date) else val.date()
-            else:
-                s = str(val).strip()
-                try:
-                    birth_date = datetime.strptime(s, "%d/%m/%Y").date()
-                except Exception:
-                    try:
-                        birth_date = datetime.strptime(s, "%Y-%m-%d").date()
-                    except Exception:
-                        try:
-                            birth_year = int(s)
-                            birth_date = date(birth_year, 1, 1)
-                        except Exception:
-                            pass
+        # Ngày sinh, ngày mất
+        dob = parse_any_date(row[birth_idx]) if (birth_idx != -1 and birth_idx < len(row)) else None
+        dod = parse_any_date(row[death_idx]) if (death_idx != -1 and death_idx < len(row)) else None
 
-        # Còn sống hay đã mất
-        is_alive = True
-        if alive_idx != -1 and row[alive_idx]:
+        # Tình trạng còn sống / đã mất
+        if alive_idx != -1 and alive_idx < len(row) and row[alive_idx]:
             a_str = str(row[alive_idx]).strip().lower()
             if "mất" in a_str or "đã mất" in a_str or "qua đời" in a_str or a_str in ["0", "false", "no"]:
-                is_alive = False
+                if dod is None:
+                    dod = date(1900, 1, 1)  # Đánh dấu đã mất nếu chưa có ngày
 
-        phone = str(row[phone_idx]).strip() if phone_idx != -1 and row[phone_idx] else None
-        address = str(row[address_idx]).strip() if address_idx != -1 and row[address_idx] else None
-        bio = str(row[bio_idx]).strip() if bio_idx != -1 and row[bio_idx] else None
+        pob = str(row[pob_idx]).strip() if pob_idx != -1 and pob_idx < len(row) and row[pob_idx] else None
+        pod = str(row[pod_idx]).strip() if pod_idx != -1 and pod_idx < len(row) and row[pod_idx] else None
+        cccd_val = str(row[cccd_idx]).strip() if cccd_idx != -1 and cccd_idx < len(row) and row[cccd_idx] else None
+        phone = str(row[phone_idx]).strip() if phone_idx != -1 and phone_idx < len(row) and row[phone_idx] else None
+        job = str(row[job_idx]).strip() if job_idx != -1 and job_idx < len(row) and row[job_idx] else None
+        address = str(row[address_idx]).strip() if address_idx != -1 and address_idx < len(row) and row[address_idx] else None
+        bio = str(row[bio_idx]).strip() if bio_idx != -1 and bio_idx < len(row) and row[bio_idx] else None
+        # Lấy giá trị STT của dòng
+        stt_val = None
+        if stt_idx != -1 and stt_idx < len(row) and row[stt_idx] is not None:
+            try:
+                stt_val = str(int(float(str(row[stt_idx]).strip())))
+            except Exception:
+                stt_val = str(row[stt_idx]).strip()
 
-        father_name = str(row[father_idx]).strip() if father_idx != -1 and row[father_idx] else None
-        mother_name = str(row[mother_idx]).strip() if mother_idx != -1 and row[mother_idx] else None
+        father_val = str(row[father_idx]).strip() if father_idx != -1 and father_idx < len(row) and row[father_idx] else None
+        mother_val = str(row[mother_idx]).strip() if mother_idx != -1 and mother_idx < len(row) and row[mother_idx] else None
 
         # Tạo đối tượng Member trong MySQL
         new_member = Member(
@@ -613,19 +766,26 @@ async def import_genealogy_excel(
             last_name=last_name,
             gender=gender,
             generation=generation,
-            birth_date=birth_date,
-            is_alive=is_alive,
+            date_of_birth=dob,
+            date_of_death=dod,
+            place_of_birth=pob,
+            place_of_death=pod,
+            cccd=cccd_val,
             phone_number=phone,
-            birth_place=address,
-            bio=bio,
-            branch_type="Họ nội",
+            occupation=job,
+            permanent_address=address,
+            biography=bio,
+            role="member",
+            status="approved",
+            requires_approval=False,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
         )
         db.add(new_member)
         imported_members.append(new_member)
-        if father_name or mother_name:
-            parent_links.append((new_member, father_name, mother_name))
+        if stt_val:
+            stt_to_member[stt_val] = new_member
+        if father_val or mother_val:
+            row_links.append((new_member, father_val, mother_val))
 
     db.commit()
 
@@ -642,22 +802,47 @@ async def import_genealogy_excel(
         except Exception as e:
             print(f"[!] Neo4j import node error: {e}")
 
-    # Liên kết cha / mẹ tự động dựa trên tên
+    # Lấy danh sách thành viên hiện có trong gia phả để map tên
     all_family_members = db.query(Member).filter(Member.family_id == family_id).all()
     name_to_member = {f"{mem.last_name or ''} {mem.first_name or ''}".strip().lower(): mem for mem in all_family_members}
 
-    for child, f_name, m_name in parent_links:
-        if f_name:
-            f_mem = name_to_member.get(f_name.strip().lower())
-            if f_mem:
+    # Gán cha mẹ tự động (qua STT trong file hoặc qua Tên)
+    for child, f_val, m_val in row_links:
+        if f_val:
+            f_clean = f_val.strip()
+            # 1. Thử tìm qua STT
+            f_mem = stt_to_member.get(f_clean)
+            if not f_mem:
+                try:
+                    f_stt_int = str(int(float(f_clean)))
+                    f_mem = stt_to_member.get(f_stt_int)
+                except Exception:
+                    pass
+            # 2. Thử tìm qua Tên
+            if not f_mem:
+                f_mem = name_to_member.get(f_clean.lower())
+
+            if f_mem and f_mem.id != child.id:
                 child.father_id = f_mem.id
                 try:
                     create_relationship_in_graph(f_mem.id, child.id, "FATHER_OF")
                 except Exception:
                     pass
-        if m_name:
-            m_mem = name_to_member.get(m_name.strip().lower())
-            if m_mem:
+        if m_val:
+            m_clean = m_val.strip()
+            # 1. Thử tìm qua STT
+            m_mem = stt_to_member.get(m_clean)
+            if not m_mem:
+                try:
+                    m_stt_int = str(int(float(m_clean)))
+                    m_mem = stt_to_member.get(m_stt_int)
+                except Exception:
+                    pass
+            # 2. Thử tìm qua Tên
+            if not m_mem:
+                m_mem = name_to_member.get(m_clean.lower())
+
+            if m_mem and m_mem.id != child.id:
                 child.mother_id = m_mem.id
                 try:
                     create_relationship_in_graph(m_mem.id, child.id, "MOTHER_OF")
@@ -670,5 +855,5 @@ async def import_genealogy_excel(
         "success": True,
         "family_id": family_id,
         "total_imported": len(imported_members),
-        "message": f"Đã nhập thành công {len(imported_members)} thành viên vào gia phả!"
+        "message": f"Đã nhập thành công {len(imported_members)} thành viên vào gia phả!",
     }

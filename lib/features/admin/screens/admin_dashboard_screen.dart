@@ -64,8 +64,253 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  Future<void> _handleImportExcel() async {
+void _handleImportExcel() {
     if (_activeFamilyId == null) return;
+    _showExcelOptionsBottomSheet();
+  }
+
+  void _showExcelOptionsBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thanh gạt
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Tiêu đề
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.table_chart_rounded,
+                    color: Color(0xFF2E7D32),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Nhập gia phả từ Excel',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Chọn thao tác bạn muốn thực hiện',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Tùy chọn 1: Lấy file mẫu Excel
+            _buildExcelOptionCard(
+              icon: Icons.download_rounded,
+              iconColor: const Color(0xFF1565C0),
+              iconBgColor: const Color(0xFFE3F2FD),
+              title: '1. Lấy file Excel mẫu chuẩn',
+              subtitle: 'Tải tệp .xlsx có cấu trúc cột chuẩn, hướng dẫn và dữ liệu mẫu',
+              badge: 'Khuyên dùng',
+              badgeColor: const Color(0xFF1E88E5),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _downloadTemplate();
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // Tùy chọn 2: Nhập (Import) file Excel
+            _buildExcelOptionCard(
+              icon: Icons.file_upload_outlined,
+              iconColor: const Color(0xFF2E7D32),
+              iconBgColor: const Color(0xFFE8F5E9),
+              title: '2. Tải lên & Nhập (Import) file',
+              subtitle: 'Chọn tệp Excel (.xlsx, .xls) từ máy để nhập vào cây gia phả',
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _pickAndImportExcel();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExcelOptionCard({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBgColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    String? badge,
+    Color? badgeColor,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAF7F5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (badgeColor ?? AppColors.primary).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            badge,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: badgeColor ?? AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _downloadTemplate() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: AppColors.primary),
+                SizedBox(height: 16),
+                Text('Đang tải file Excel mẫu chuẩn...', style: TextStyle(fontSize: 14)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final savedPath = await AdminApiService.downloadGenealogyExcelTemplate();
+      if (!mounted) return;
+      Navigator.pop(context); // Đóng loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã lưu file mẫu thành công:\n$savedPath'),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Đóng loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi tải file mẫu: $e'),
+          backgroundColor: AppColors.badgeRed,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickAndImportExcel() async {
+        if (_activeFamilyId == null) return;
 
     try {
       final result = await FilePickerPlatform.instance.pickFiles(
@@ -77,6 +322,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final file = File(result.first.path!);
         final fileName = result.first.name;
 
+        if (!mounted) return;
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -155,6 +401,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi chọn file: $e'), backgroundColor: AppColors.badgeRed),
       );

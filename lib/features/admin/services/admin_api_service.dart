@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../../../config/api_config.dart';
 import '../../auth/services/auth_service.dart';
+import 'package:mime/mime.dart';
+import 'package:path_provider/path_provider.dart';
 
 class AdminDashboardStats {
   final int familyId;
@@ -184,55 +186,6 @@ class AdminApiService {
     }
   }
 
-  /// Import gia phả bằng tệp Excel (.xlsx / .xls)
-  static Future<Map<String, dynamic>> importGenealogyExcel({
-    required int familyId,
-    required File file,
-  }) async {
-    try {
-      final token = await AuthService.getToken();
-      final url = Uri.parse('$_baseUrl/import-excel?family_id=$familyId');
-      final request = http.MultipartRequest('POST', url);
-
-      if (token != null && token.isNotEmpty) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
-
-      final fileName = file.path.split(Platform.pathSeparator).last;
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'file',
-          file.path,
-          filename: fileName,
-          contentType: MediaType('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-        ),
-      );
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        return {
-          'success': true,
-          'total': data['total_imported'] ?? 0,
-          'message': data['message'] ?? 'Import thành công!',
-        };
-      } else {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        return {
-          'success': false,
-          'message': data['detail'] ?? 'Không thể import file Excel',
-        };
-      }
-    } catch (e) {
-      debugPrint('[!] AdminApiService.importGenealogyExcel error: $e');
-      return {
-        'success': false,
-        'message': 'Lỗi kết nối khi tải file: $e',
-      };
-    }
-  }
 
   // ==========================================
   // DUYỆT SỰ KIỆN (Events Approval)
@@ -350,6 +303,82 @@ class AdminApiService {
     } catch (e) {
       debugPrint('[!] AdminApiService.getFamilyUsers error: $e');
       return [];
+    }
+  }
+  // ==========================================
+  // 4. IMPORT & TẢI FILE MẪU EXCEL GIA PHẢ
+  // ==========================================
+  static Future<String> downloadGenealogyExcelTemplate() async {
+    try {
+      final url = Uri.parse('$_baseUrl/template-excel');
+      final headers = await _getHeaders();
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 20));
+      if (response.statusCode == 200) {
+        Directory? dir;
+        try {
+          if (Platform.isAndroid) {
+            dir = Directory('/storage/emulated/0/Download');
+            if (!await dir.exists()) {
+              dir = await getExternalStorageDirectory();
+            }
+          }
+        } catch (_) {}
+        dir ??= await getApplicationDocumentsDirectory();
+
+        final filePath = '${dir.path}/Mau_Nhap_Gia_Pha.xlsx';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      } else {
+        throw Exception('Không thể tải file mẫu (${response.statusCode})');
+      }
+    } catch (e) {
+      debugPrint('[!] AdminApiService.downloadGenealogyExcelTemplate error: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> importGenealogyExcel({
+    required int familyId,
+    required File file,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/import-excel?family_id=$familyId');
+      final token = await AuthService.getToken();
+      final request = http.MultipartRequest('POST', url);
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      final mimeType = lookupMimeType(file.path) ?? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      final parts = mimeType.split('/');
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          file.path,
+          contentType: MediaType(parts[0], parts.length > 1 ? parts[1] : 'octet-stream'),
+        ),
+      );
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 40));
+      final response = await http.Response.fromStream(streamedResponse);
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Import thành công!',
+          'total_imported': data['total_imported'] ?? 0,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['detail'] ?? data['message'] ?? 'Lỗi máy chủ (${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      debugPrint('[!] AdminApiService.importGenealogyExcel error: $e');
+      return {
+        'success': false,
+        'message': 'Không thể kết nối máy chủ để import: $e',
+      };
     }
   }
 }
