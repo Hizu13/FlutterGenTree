@@ -7,9 +7,12 @@ import '../../member/models/member_model.dart';
 import '../../member/repositories/member_repository.dart';
 import '../../member/screens/member_profile_screen.dart';
 import '../../member/services/member_api_service.dart';
+import '../../family/models/family_model.dart';
+import '../../family/services/family_api_service.dart';
 
 class TreeScreen extends StatefulWidget {
-  const TreeScreen({super.key});
+  final FamilyModel? family;
+  const TreeScreen({super.key, this.family});
 
   @override
   State<TreeScreen> createState() => _TreeScreenState();
@@ -64,14 +67,15 @@ class _TreeScreenState extends State<TreeScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _loadData() async {
+    final targetFamily = widget.family ?? await FamilyApiService.getCurrentFamily();
+    final targetFamilyId = targetFamily?.id;
     _currentUser = await AuthService.getSavedUser();
     _currentUser ??= await AuthService.fetchProfile();
 
-    if (MemberRepository.members.isEmpty) {
-      try {
-        await MemberRepository.fetchAll();
-      } catch (_) {}
-    }
+    try {
+      await MemberRepository.fetchAll(forceRefresh: true, familyId: targetFamilyId);
+    } catch (_) {}
+
 
     _allMembers = List.from(MemberRepository.members);
     _currentMember = _findCurrentMember();
@@ -987,12 +991,30 @@ class _TreeScreenState extends State<TreeScreen> with SingleTickerProviderStateM
             ),
           ),
           const SizedBox(width: 12),
-          const Text(
-            'Sơ đồ gia phả',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Sơ đồ gia phả',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (widget.family?.name != null)
+                  Text(
+                    widget.family!.name,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
             ),
           ),
         ],

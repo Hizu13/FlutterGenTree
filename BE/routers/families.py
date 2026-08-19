@@ -98,7 +98,7 @@ def _family_to_dict(family: Family, db: Session, current_user_id: Optional[int] 
         .count()
     )
 
-    # Xác định vai trò của user trong gia phả này
+    # Xác định vai trò của user trong gia phả này (chỉ xét khi đã được duyệt hoặc là chủ gia phả)
     user_role = "member"
     if current_user_id:
         if family.owner_id == current_user_id:
@@ -149,51 +149,22 @@ def get_my_families(
     """
     Kiểm tra và trả về tất cả các gia phả mà user hiện tại:
     1. Là chủ sở hữu (owner_id = current_user.id)
-    2. Đã tham gia làm thành viên (bảng members có user_id = current_user.id hoặc trùng CCCD/SĐT)
+    2. Đã chính thức tham gia làm thành viên (Member.user_id = current_user.id)
+    Yêu cầu người dùng phải nhập mã gia phả (join_code) để tham gia thay vì tự động liên kết ngầm.
     """
-    # 1. Tự động đồng bộ user_id và thông tin cá nhân vào các bản ghi Member có cùng CCCD mà chưa liên kết
-    if current_user.cccd and current_user.cccd.strip():
-        unlinked_members = (
-            db.query(Member)
-            .filter(Member.cccd == current_user.cccd.strip(), Member.user_id.is_(None))
-            .all()
-        )
-        for m in unlinked_members:
-            m.user_id = current_user.id
-            if current_user.first_name:
-                m.first_name = current_user.first_name
-            if current_user.last_name:
-                m.last_name = current_user.last_name
-            if current_user.avatar_url:
-                m.avatar_url = current_user.avatar_url
-            if getattr(current_user, 'phone_number', None):
-                m.phone_number = current_user.phone_number
-            if current_user.date_of_birth:
-                m.date_of_birth = current_user.date_of_birth
-            if current_user.place_of_birth:
-                m.place_of_birth = current_user.place_of_birth
-        if unlinked_members:
-            db.commit()
-
-    # 2. Tìm các gia phả user là owner
+    # 1. Tìm các gia phả user là owner
     owned_families = db.query(Family).filter(Family.owner_id == current_user.id).all()
     owned_ids = {f.id for f in owned_families}
 
-    # 3. Tìm các gia phả user là thành viên qua bảng members
-    member_family_query = db.query(Member.family_id).filter(Member.family_id.isnot(None))
-    
-    # Lọc theo user_id hoặc cccd (nếu có)
-    conditions = [Member.user_id == current_user.id]
-    if current_user.cccd:
-        conditions.append(Member.cccd == current_user.cccd)
-    if current_user.username and current_user.username.isdigit():
-        conditions.append(Member.phone_number == current_user.username)
-        
+    # 2. Tìm các gia phả user đã tham gia (chỉ xét các bản ghi Member có user_id đã được liên kết chính thức)
     from sqlalchemy import or_
     member_family_ids = (
-        member_family_query.filter(
-            or_(*conditions),
-            or_(Member.status == "approved", Member.status.is_(None))
+        db.query(Member.family_id)
+        .filter(
+            Member.family_id.isnot(None),
+            Member.user_id == current_user.id,
+            or_(Member.status == "approved", Member.status.is_(None)),
+            Member.requires_approval != True
         )
         .distinct()
         .all()
@@ -353,65 +324,65 @@ def join_family(
             .filter(Member.family_id == family.id, Member.cccd == current_user.cccd.strip())
             .first()
         )
-        if existing_member:
-            # Đồng bộ thông tin cá nhân của User vào bản ghi thành viên này
-            existing_member.user_id = current_user.id
-            if current_user.first_name:
-                existing_member.first_name = current_user.first_name
-            if current_user.last_name:
-                existing_member.last_name = current_user.last_name
-            if current_user.gender:
-                existing_member.gender = "female" if current_user.gender in ["Nữ", "female"] else "male"
-            if current_user.date_of_birth:
-                existing_member.date_of_birth = current_user.date_of_birth
-            if current_user.place_of_birth:
-                existing_member.place_of_birth = current_user.place_of_birth
-            if current_user.avatar_url:
-                existing_member.avatar_url = current_user.avatar_url
-            if getattr(current_user, 'phone_number', None):
-                existing_member.phone_number = current_user.phone_number
-            if getattr(current_user, 'address', None):
-                existing_member.permanent_address = current_user.address
-            db.commit()
-            db.refresh(existing_member)
+
     # Nếu user là chủ gia phả -> Duyệt tự động luôn
     is_owner = (family.owner_id == current_user.id)
 
+    # ── TRƯỜNG HỢP 1: Đã có node thành viên trùng CCCD hoặc trùng User ID ──
     if existing_member:
-        # Đồng bộ lại Neo4j với thông tin mới nhất
-        if is_owner or existing_member.status == "approved":
+        # Tự động map và đồng bộ tài khoản (user_id) và thông tin cá nhân với node đó trên cây gia phả
+        existing_member.user_id = current_user.id
+        if current_user.first_name:
+            existing_member.first_name = current_user.first_name
+        if current_user.last_name:
+            existing_member.last_name = current_user.last_name
+        if current_user.gender:
+            existing_member.gender = "female" if current_user.gender in ["Nữ", "female"] else "male"
+        if current_user.date_of_birth:
+            existing_member.date_of_birth = current_user.date_of_birth
+        if current_user.place_of_birth:
+            existing_member.place_of_birth = current_user.place_of_birth
+        if current_user.avatar_url:
+            existing_member.avatar_url = current_user.avatar_url
+        if getattr(current_user, 'phone_number', None):
+            existing_member.phone_number = current_user.phone_number
+
+        if is_owner:
             existing_member.status = "approved"
             existing_member.requires_approval = False
             db.commit()
+            db.refresh(existing_member)
 
-        background_tasks.add_task(
-            _safe_sync_to_graph,
-            id=existing_member.id,
-            full_name=existing_member.full_name,
-            gender=existing_member.gender,
-            family_id=family.id,
-        )
-        return {
-            "success": True,
+            background_tasks.add_task(
+                _safe_sync_to_graph,
+                id=existing_member.id,
+                full_name=existing_member.full_name,
+                gender=existing_member.gender,
+                family_id=family.id,
+            )
+            return {
+                "success": True,
                 "requires_approval": False,
-                "message": f"Bạn đã là thành viên chính thức của gia phả '{family.name}'",
+                "message": f"Bạn đã là chủ sở hữu và thành viên chính thức của gia phả '{family.name}'",
                 "data": _family_to_dict(family, db, current_user.id),
-            "member_id": existing_member.id,
-        }
-    else:
-        # Đang chờ duyệt
-        existing_member.status = "pending"
-        existing_member.requires_approval = True
-        db.commit()
-        return {
-            "success": True,
-            "requires_approval": True,
-            "message": f"Yêu cầu tham gia gia phả '{family.name}' của bạn đang chờ quản trị viên phê duyệt.",
-            "data": None,
-            "member_id": existing_member.id,
-        }
+                "member_id": existing_member.id,
+            }
+        else:
+            # Chuyển trạng thái chờ Quản trị viên duyệt
+            existing_member.status = "pending"
+            existing_member.requires_approval = True
+            db.commit()
+            db.refresh(existing_member)
 
-    # 3. Nếu chưa có bản ghi, tạo bản ghi thành viên mới ở trạng thái CHỜ DUYỆT (pending)
+            return {
+                "success": True,
+                "requires_approval": True,
+                "message": f"Đã tìm thấy thông tin của bạn trên cây gia phả '{family.name}'. Yêu cầu liên kết tài khoản đã được gửi tới Quản trị viên phê duyệt!",
+                "data": None,
+                "member_id": existing_member.id,
+            }
+
+    # ── TRƯỜNG HỢP 2: Chưa có node trùng CCCD -> Tham gia như 1 thành viên mới ──
     user_gender_db = "male"
     if current_user.gender:
         user_gender_db = "female" if current_user.gender in ["Nữ", "female"] else "male"
@@ -442,30 +413,30 @@ def join_family(
     db.commit()
     db.refresh(new_member)
 
-    # Đồng bộ sang Neo4j ở Background
     if is_owner:
-            background_tasks.add_task(
-                _safe_sync_to_graph,
-                id=new_member.id,
-                full_name=new_member.full_name,
-                gender=new_member.gender,
-                family_id=family.id,
-            )
-            return {
-                "success": True,
-                "requires_approval": False,
-                "message": f"Tham gia gia phả '{family.name}' thành công",
-                "data": _family_to_dict(family, db, current_user.id),
-                "member_id": new_member.id,
-            }
+        background_tasks.add_task(
+            _safe_sync_to_graph,
+            id=new_member.id,
+            full_name=new_member.full_name,
+            gender=new_member.gender,
+            family_id=family.id,
+        )
+        return {
+            "success": True,
+            "requires_approval": False,
+            "message": f"Tham gia gia phả '{family.name}' thành công",
+            "data": _family_to_dict(family, db, current_user.id),
+            "member_id": new_member.id,
+        }
 
     return {
         "success": True,
         "requires_approval": True,
-        "message": f"Đã gửi yêu cầu tham gia gia phả '{family.name}'. Vui lòng chờ quản trị viên phê duyệt!",
+        "message": f"Đã gửi yêu cầu tham gia gia phả '{family.name}' như thành viên mới. Vui lòng chờ Quản trị viên phê duyệt!",
         "data": None,
         "member_id": new_member.id,
     }
+
 
 
 @router.get("/{family_id}", summary="Xem thông tin chi tiết của gia phả")
