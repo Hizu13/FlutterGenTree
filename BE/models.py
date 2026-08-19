@@ -1,9 +1,9 @@
 from sqlalchemy import (
-    Column, Integer, String, Date, ForeignKey, Text, Enum, TIMESTAMP, UniqueConstraint,  Boolean, Float
+    Column, Integer, String, Date, ForeignKey, Text, Enum, TIMESTAMP, UniqueConstraint, Boolean, Float, Numeric
 )
 from sqlalchemy.orm import relationship
 from db.mysql_connection import Base
-import enum
+
 
 
 class User(Base):
@@ -48,7 +48,10 @@ class Family(Base):
     owner_id = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP, nullable=True)
 
-    members = relationship("Person", back_populates="family")
+    # Quan hệ 1-N: 1 Gia phả có nhiều thành viên, sự kiện và giao dịch thu chi
+    members = relationship("Member", back_populates="family")
+    events = relationship("Event", back_populates="family", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="family", cascade="all, delete-orphan")
 
 
 class Member(Base):
@@ -102,21 +105,10 @@ class Member(Base):
 # Alias Person to Member để tương thích ngược với các hàm xử lý cũ
 Person = Member
 
-class Relationship(Base):
-    __tablename__ = "relationships"
 
-    id = Column(Integer, primary_key=True, index=True)
-    person1_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
-    person2_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
-    type = Column(String(50), nullable=False)
-
-    person1 = relationship("Person", foreign_keys=[person1_id])
-    person2 = relationship("Person", foreign_keys=[person2_id])
-
-# ============================================================================
-# EVENT MODELS - Quản lý sự kiện gia đình (Giỗ, họp họ, lễ tảo mộ...)
-# ============================================================================
-
+# ==============================================================================
+# 4. EVENT MODULE: QUẢN LÝ SỰ KIỆN GIA TỘC (EVENTS)
+# ==============================================================================
 class Event(Base):
     """
     Model quản lý sự kiện gia tộc / dòng họ trong hệ thống:
@@ -151,10 +143,27 @@ class Event(Base):
     member = relationship("Member", foreign_keys=[member_id])
 
 
-# ============================================================================
-# FINANCE MODELS - Quản lý tài chính gia phả (Thu, chi, công đức)
-# ============================================================================
+# ==============================================================================
+# 5. RELATIONSHIP MODULE: QUAN HỆ GIA TỘC (RELATIONSHIPS)
+# ==============================================================================
+class Relationship(Base):
+    """
+    Model quản lý các quan hệ trực tiếp giữa hai thành viên trong dòng họ (ví dụ: vợ chồng).
+    """
+    __tablename__ = "relationships"
 
+    id = Column(Integer, primary_key=True, index=True)
+    person1_id = Column(Integer, ForeignKey("members.id"), nullable=False)
+    person2_id = Column(Integer, ForeignKey("members.id"), nullable=False)
+    type = Column(String(50), nullable=False)
+
+    person1 = relationship("Member", foreign_keys=[person1_id])
+    person2 = relationship("Member", foreign_keys=[person2_id])
+
+
+# ==============================================================================
+# 6. FINANCE MODULE: QUẢN LÝ THU CHI & QUỸ DÒNG HỌ (TRANSACTIONS)
+# ==============================================================================
 class Transaction(Base):
     """
     Model quản lý các giao dịch thu, chi, công đức của dòng họ:
