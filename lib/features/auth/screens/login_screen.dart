@@ -190,29 +190,31 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Nút Back trên góc trái
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: GestureDetector(
-                        onTap: () {
-                          if (Navigator.canPop(context)) {
-                            Navigator.pop(context);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.6),
+                    // Nút Back trên góc trái (chỉ hiển thị nếu có màn hình trước đó để quay lại)
+                    if (Navigator.canPop(context))
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: GestureDetector(
+                          onTap: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.6),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: textColor,
+                              size: 18,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: textColor,
-                            size: 18,
-                          ),
+                          
                         ),
                       ),
-                    ),
 
                     const SizedBox(height: 10),
 

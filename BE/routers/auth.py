@@ -176,15 +176,27 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
         # 1. Kiểm tra username đã tồn tại chưa
         existing_username = db.query(User).filter(User.username == data.username.strip()).first()
         if existing_username:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tên đăng nhập đã được sử dụng")
-
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tên đăng nhập này đã được sử dụng. Vui lòng chọn tên đăng nhập khác.",
+            )
         # 2. Kiểm tra email đã tồn tại chưa
         existing_email = db.query(User).filter(User.email == data.email.strip()).first()
         if existing_email:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email đã được sử dụng")
-
-        # 3. Tạo User mới (ép quyền 'member' mặc định)
-        new_user = User(
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Địa chỉ email này đã được đăng ký cho một tài khoản khác.",
+            )
+        # 3. Kiểm tra số CCCD/CMND đã tồn tại chưa (nếu có nhập)
+        if data.cccd and data.cccd.strip():
+            cccd_clean = data.cccd.strip()
+            existing_cccd = db.query(User).filter(User.cccd == cccd_clean).first()
+            if existing_cccd:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Số CCCD/CMND '{cccd_clean}' đã được đăng ký cho tài khoản '{existing_cccd.username}'. Vui lòng kiểm tra lại hoặc đăng nhập bằng tài khoản này.",
+                )
+        # 4. Tạo User mới (ép quyền 'member' mặc định)        new_user = User(
             username=data.username.strip(),
             password_hash=hash_password(data.password),
             first_name=data.first_name.strip(),
@@ -198,7 +210,7 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
             avatar_url=data.avatar_url,
             role="member",  # Luôn mặc định là member
             created_at=datetime.now(),
-        )
+        
 
         db.add(new_user)
         db.commit()
@@ -230,12 +242,29 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
             raise
     except Exception as e:
             db.rollback()
+            err_msg = str(e)
+            if "Duplicate entry" in err_msg or "1062" in err_msg:
+                if "cccd" in err_msg.lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Số CCCD/CMND này đã được đăng ký cho một tài khoản khác.",
+                    )
+                elif "username" in err_msg.lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Tên đăng nhập này đã được sử dụng.",
+                    )
+                elif "email" in err_msg.lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Địa chỉ email này đã được sử dụng.",
+                    )
             import traceback
             traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Lỗi máy chủ khi đăng ký: {str(e)}",
-        )
+                detail="Đã xảy ra lỗi trong quá trình đăng ký. Vui lòng kiểm tra lại thông tin.",
+            )
 
 # =====================
 # 🔑 API Đăng nhập (Login)
@@ -315,8 +344,16 @@ def update_profile(
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email này đã được tài khoản khác sử dụng")
         current_user.email = data.email.strip()
-    if data.cccd is not None:
+    if data.cccd is not None and data.cccd.strip():
         current_user.cccd = data.cccd.strip()
+        cccd_clean = data.cccd.strip()
+        existing_cccd = db.query(User).filter(User.cccd == cccd_clean, User.id != current_user.id).first()
+        if existing_cccd:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Số CCCD/CMND '{cccd_clean}' đã được tài khoản khác sử dụng.",
+            )
+        current_user.cccd = cccd_clean
     if data.avatar_url is not None:
         current_user.avatar_url = data.avatar_url
 

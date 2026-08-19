@@ -44,6 +44,28 @@ def _format_currency_short(amount: float) -> str:
     else:
         return f"{int(amount)} đ"
 
+def _check_family_admin_permission(family_id: int, user: User, db: Session):
+    """Kiểm tra quyền Admin/Owner/Editor của user trong dòng họ này."""
+    if user.role in ["admin", "owner"]:
+        return
+    family = db.query(Family).filter(Family.id == family_id).first()
+    if not family:
+        raise HTTPException(status_code=404, detail="Không tìm thấy gia phả")
+    if family.owner_id == user.id:
+        return
+    member = db.query(Member).filter(
+        Member.family_id == family_id,
+        Member.user_id == user.id,
+        Member.status == "approved",
+        Member.requires_approval != True
+    ).first()
+    if member and member.role in ["admin", "owner", "editor"]:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail="Bạn không có quyền quản trị trong gia phả này."
+    )
+
 
 # ==============================================================================
 # 1. API THỐNG KÊ DASHBOARD
@@ -51,11 +73,13 @@ def _format_currency_short(amount: float) -> str:
 @router.get("/dashboard-stats")
 def get_admin_dashboard_stats(
     family_id: int = Query(..., description="ID dòng họ"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Lấy toàn bộ số liệu thống kê cho Dashboard Quản trị.
     """
+    _check_family_admin_permission(family_id, current_user, db)
     family = db.query(Family).filter(Family.id == family_id).first()
     if not family:
         raise HTTPException(status_code=404, detail="Không tìm thấy gia phả")
@@ -165,11 +189,13 @@ def get_admin_dashboard_stats(
 @router.get("/pending-items")
 def get_pending_items(
     family_id: int = Query(..., description="ID dòng họ"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Lấy danh sách các yêu cầu đang chờ phê duyệt (Thu chi & Sự kiện).
     """
+    _check_family_admin_permission(family_id, current_user, db)
     # 1. Giao dịch thu chi chờ duyệt
     pending_txs = (
         db.query(Transaction)
@@ -235,11 +261,13 @@ def get_pending_items(
 def get_admin_events_by_status(
     family_id: int = Query(..., description="ID dòng họ"),
     status: str = Query("pending", description="Trạng thái: pending hoặc approved"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Lấy danh sách sự kiện theo trạng thái 'pending' hoặc 'approved'.
     """
+    _check_family_admin_permission(family_id, current_user, db)
     query = db.query(Event).filter(Event.family_id == family_id)
     if status == "pending":
         query = query.filter(
@@ -289,11 +317,13 @@ def get_admin_events_by_status(
 def get_admin_members_by_status(
     family_id: int = Query(..., description="ID dòng họ"),
     status: str = Query("pending", description="Trạng thái: pending hoặc approved"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Lấy danh sách thành viên theo trạng thái 'pending' hoặc 'approved'.
     """
+    _check_family_admin_permission(family_id, current_user, db)
     query = db.query(Member).filter(Member.family_id == family_id)
     if status == "pending":
         query = query.filter(
@@ -352,13 +382,15 @@ def get_admin_members_by_status(
 @router.patch("/members/{member_id}/approve")
 def approve_member(
     member_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Phê duyệt thành viên vào gia phả."""
     m = db.query(Member).filter(Member.id == member_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
-
+    
+    _check_family_admin_permission(m.family_id, current_user, db)
     m.status = "approved"
     m.requires_approval = False
     db.commit()
@@ -380,6 +412,7 @@ def approve_member(
 @router.patch("/members/{member_id}/reject")
 def reject_member(
     member_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Từ chối thành viên."""
@@ -387,6 +420,7 @@ def reject_member(
     if not m:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
 
+    _check_family_admin_permission(m.family_id, current_user, db)
     m.status = "rejected"
     db.commit()
 
@@ -399,11 +433,13 @@ def reject_member(
 @router.get("/users")
 def get_family_users(
     family_id: int = Query(..., description="ID dòng họ"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Lấy danh sách các tài khoản User (người dùng thực) trong dòng họ để phân quyền.
     """
+    _check_family_admin_permission(family_id, current_user, db)
     family = db.query(Family).filter(Family.id == family_id).first()
     if not family:
         raise HTTPException(status_code=404, detail="Không tìm thấy gia phả")
