@@ -1,33 +1,145 @@
 import 'package:flutter/material.dart';
 import 'package:gentree/config/app_color.dart';
+import '../../member/models/member_model.dart';
+import '../../member/services/member_api_service.dart';
+import '../models/transaction_model.dart';
+import '../services/finance_api_service.dart';
 
 class AddIncomeScreen extends StatefulWidget {
-  const AddIncomeScreen({super.key});
+  final bool canManage;
+  final int? familyId;
+
+  const AddIncomeScreen({
+    super.key,
+    this.canManage = false,
+    this.familyId,
+  });
 
   @override
   State<AddIncomeScreen> createState() => _AddIncomeScreenState();
 }
 
 class _AddIncomeScreenState extends State<AddIncomeScreen> {
-  final _eventController = TextEditingController(
-    text: 'Xây dựng mộ ông Nguyễn Văn A',
-  );
-  final _amountController = TextEditingController(text: '2.000.000');
+  final _eventController = TextEditingController();
+  final _amountController = TextEditingController();
+  final _personNameController = TextEditingController();
+  final _categoryController = TextEditingController(text: 'Khoản thu');
   final _noteController = TextEditingController();
 
-  String _selectedSource = 'Nguyễn Thị B - đời 4';
-  DateTime _selectedDate = DateTime(2026, 3, 17);
-  bool _requiresApproval = true;
+  DateTime _selectedDate = DateTime.now();
+  bool _isLoading = false;
+  List<MemberModel> _members = [];
+  MemberModel? _selectedMember;
 
-  final List<String> _sources = [
-    'Nguyễn Thị B - đời 4',
-    'Nguyễn Văn A - đời 3',
-    'Trần Văn B - đời 4',
-    'Phạm Thị D - đời 5',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  @override
+  void dispose() {
+    _eventController.dispose();
+    _amountController.dispose();
+    _personNameController.dispose();
+    _categoryController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMembers() async {
+    try {
+      final members = await MemberApiService.fetchAll(familyId: widget.familyId);
+      if (mounted) {
+        setState(() {
+          _members = members;
+          if (members.isNotEmpty) {
+            _selectedMember = members.first;
+            _personNameController.text = members.first.fullName;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  double _parseAmount(String text) {
+    final clean = text.replaceAll('.', '').replaceAll(',', '').replaceAll('đ', '').trim();
+    return double.tryParse(clean) ?? 0.0;
+  }
+
+  Future<void> _handleSubmit() async {
+    final title = _eventController.text.trim();
+    final amount = _parseAmount(_amountController.text);
+    final personName = _personNameController.text.trim();
+
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập tên sự kiện / khoản thu')),
+      );
+      return;
+    }
+
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
+      );
+      return;
+    }
+
+    if (personName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập người nộp / nguồn tiền')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final memberId = _selectedMember?.id != null ? int.tryParse(_selectedMember!.id!) : null;
+
+    final tx = TransactionModel(
+      id: '',
+      title: title,
+      amount: amount,
+      type: TransactionType.income,
+      personName: personName,
+      category: _categoryController.text.trim().isNotEmpty
+          ? _categoryController.text.trim()
+          : 'Khoản thu',
+      date: _selectedDate,
+      note: _noteController.text.trim(),
+      familyId: widget.familyId,
+      memberId: memberId,
+      requiresApproval: !widget.canManage,
+      status: widget.canManage ? 'approved' : 'pending',
+    );
+
+    final result = await FinanceApiService.createTransaction(tx);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result != null) {
+      final msg = widget.canManage
+          ? 'Đã ghi nhận khoản thu thành công!'
+          : 'Đã gửi yêu cầu phê duyệt khoản thu!';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: AppColors.success),
+      );
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể thêm khoản thu. Vui lòng thử lại!'),
+          backgroundColor: AppColors.badgeRed,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isManager = widget.canManage;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -52,9 +164,9 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              'Thêm khoản thu',
-              style: TextStyle(
+            Text(
+              isManager ? 'Thêm khoản thu' : 'Yêu cầu thêm khoản thu',
+              style: const TextStyle(
                 color: AppColors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -68,9 +180,10 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLabel('Tên sự kiện *'),
+            _buildLabel('Tên sự kiện / Khoản thu *'),
             _buildTextField(
               controller: _eventController,
+              hintText: 'Nhập tên khoản thu (vd: Thu quỹ họ năm 2026)',
               suffixIcon: const Icon(
                 Icons.article_outlined,
                 color: AppColors.primary,
@@ -82,25 +195,39 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
             _buildTextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
+              hintText: 'Nhập số tiền (VNĐ)',
               suffixText: 'đ ',
               suffixIcon: const Icon(
                 Icons.monetization_on_outlined,
                 color: AppColors.primaryGold,
               ),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Hai triệu đồng chẵn',
-              style: TextStyle(
-                color: AppColors.primaryMedium,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
+            const SizedBox(height: 16),
+
+            _buildLabel('Nguồn tiền / Người nộp *'),
+            if (_members.isNotEmpty) ...[
+              _buildMemberDropdown(),
+              const SizedBox(height: 8),
+            ],
+            _buildTextField(
+              controller: _personNameController,
+              hintText: 'Tên người nộp (hoặc nhập tên tùy chỉnh)',
+              suffixIcon: const Icon(
+                Icons.person_outline,
+                color: AppColors.primary,
               ),
             ),
             const SizedBox(height: 16),
 
-            _buildLabel('Nguồn tiền *'),
-            _buildDropdown(),
+            _buildLabel('Danh mục thu'),
+            _buildTextField(
+              controller: _categoryController,
+              hintText: 'Danh mục (vd: Đóng góp, Quỹ khuyến học, Mừng thọ...)',
+              suffixIcon: const Icon(
+                Icons.category_outlined,
+                color: AppColors.primary,
+              ),
+            ),
             const SizedBox(height: 16),
 
             _buildLabel('Ngày giao dịch *'),
@@ -109,9 +236,6 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
             _buildLabel('Chú thích (nếu có)'),
             _buildNoteField(),
-            const SizedBox(height: 16),
-
-            _buildApprovalCheckbox(),
             const SizedBox(height: 24),
 
             SizedBox(
@@ -119,35 +243,46 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               height: 48,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: isManager ? AppColors.primary : const Color(0xFF6B3812),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Đã gửi yêu cầu phê duyệt khoản thu thành công!',
+                onPressed: _isLoading ? null : _handleSubmit,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : Icon(
+                        isManager ? Icons.add_circle_outline : Icons.send_outlined,
+                        color: AppColors.white,
+                        size: 18,
                       ),
-                    ),
-                  );
-                  Navigator.pop(context);
-                },
-                icon: const Icon(
-                  Icons.send_outlined,
-                  color: AppColors.white,
-                  size: 18,
-                ),
-                label: const Text(
-                  'Yêu cầu phê duyệt',
-                  style: TextStyle(
+                label: Text(
+                  _isLoading
+                      ? 'Đang xử lý...'
+                      : (isManager ? 'Thêm khoản thu' : 'Yêu cầu phê duyệt'),
+                  style: const TextStyle(
                     color: AppColors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isManager
+                  ? 'Khoản thu sẽ được ghi nhận trực tiếp vào số dư quỹ dòng họ.'
+                  : 'Khoản thu sẽ được gửi đến Trưởng họ hoặc Biên tập viên để phê duyệt.',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -171,6 +306,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
   Widget _buildTextField({
     required TextEditingController controller,
+    String? hintText,
     TextInputType? keyboardType,
     Widget? suffixIcon,
     String? suffixText,
@@ -185,6 +321,8 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
         controller: controller,
         keyboardType: keyboardType,
         decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
@@ -201,7 +339,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
     );
   }
 
-  Widget _buildDropdown() {
+  Widget _buildMemberDropdown() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -210,13 +348,24 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
         border: Border.all(color: AppColors.border),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedSource,
+        child: DropdownButton<MemberModel>(
+          value: _selectedMember,
           isExpanded: true,
-          items: _sources
-              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+          hint: const Text('Chọn thành viên trong gia phả'),
+          items: _members
+              .map((m) => DropdownMenuItem(
+                    value: m,
+                    child: Text('${m.fullName} (Đời ${m.generation})'),
+                  ))
               .toList(),
-          onChanged: (val) => setState(() => _selectedSource = val!),
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                _selectedMember = val;
+                _personNameController.text = val.fullName;
+              });
+            }
+          },
         ),
       ),
     );
@@ -253,10 +402,9 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const Spacer(),
-            const Icon(Icons.keyboard_arrow_down, color: AppColors.textMuted),
           ],
         ),
       ),
@@ -270,70 +418,15 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        children: [
-          TextField(
-            controller: _noteController,
-            maxLines: 3,
-            maxLength: 200,
-            decoration: const InputDecoration(
-              hintText: 'Nhập chú thích (không bắt buộc)',
-              hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.all(12),
-              counterText: '',
-            ),
-          ),
-          const Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: EdgeInsets.only(right: 12, bottom: 8),
-              child: Text(
-                '0/200',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildApprovalCheckbox() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWarm,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Checkbox(
-            value: _requiresApproval,
-            activeColor: AppColors.primary,
-            onChanged: (val) => setState(() => _requiresApproval = val!),
-          ),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Yêu cầu phê duyệt',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Khoản thu này sẽ được gửi đến người có thẩm quyền phê duyệt trước khi ghi nhận.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      child: TextField(
+        controller: _noteController,
+        maxLines: 3,
+        decoration: const InputDecoration(
+          hintText: 'Nhập ghi chú chi tiết...',
+          hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.all(12),
+        ),
       ),
     );
   }

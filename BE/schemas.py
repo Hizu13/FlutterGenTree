@@ -271,3 +271,45 @@ class EventFlutterCreate(BaseModel):
     location: Optional[str] = None
     note: Optional[str] = None
     creatorId: Optional[int] = None
+
+
+
+class TransactionCreateFlutter(BaseModel):
+    """Schema nhận từ Flutter khi thêm mới khoản thu / chi / công đức"""
+    title: str
+    amount: float
+    type: str  # "income", "expense", "merit"
+    personName: str
+    category: Optional[str] = ""
+    date: Optional[str] = None  # YYYY-MM-DD hoặc ISO
+    note: Optional[str] = ""
+    requiresApproval: Optional[bool] = False
+    familyId: Optional[int] = None
+    memberId: Optional[int] = None
+
+
+class TransactionReadFlutter(BaseModel):
+    """Schema trả về Flutter khớp 100% với TransactionModel"""
+    id: str
+    title: str
+    amount: float
+    type: str  # "income", "expense", "merit"
+    personName: str
+    category: str
+    date: str  # ISO format string
+    note: Optional[str] = ""
+    status: Optional[str] = "approved"  # "approved", "pending", "rejected"
+    requiresApproval: Optional[bool] = False
+    familyId: Optional[int] = None
+    memberId: Optional[int] = None
+    createdById: Optional[int] = None
+
+
+class FinanceSummary(BaseModel):
+    """Schema tổng kết dòng tiền quỹ gia tộc"""
+    totalBalance: float
+    totalIncome: float
+    totalExpense: float
+    totalMerit: float
+    transactionCount: int
+

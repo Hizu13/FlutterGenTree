@@ -4,9 +4,21 @@ import '../models/transaction_model.dart';
 
 class TransactionCard extends StatelessWidget {
   final TransactionModel transaction;
+  final bool canManage;
   final VoidCallback? onTap;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
+  final VoidCallback? onDelete;
 
-  const TransactionCard({super.key, required this.transaction, this.onTap});
+  const TransactionCard({
+    super.key,
+    required this.transaction,
+    this.canManage = false,
+    this.onTap,
+    this.onApprove,
+    this.onReject,
+    this.onDelete,
+  });
 
   String _formatCurrency(double amount) {
     final String priceStr = amount.abs().toStringAsFixed(0);
@@ -76,15 +88,58 @@ class TransactionCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    transaction.title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          transaction.title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (transaction.isPending) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3E0),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFFB74D), width: 0.8),
+                          ),
+                          child: const Text(
+                            'Chờ duyệt',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFE65100),
+                            ),
+                          ),
+                        ),
+                      ] else if (transaction.isRejected) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFEBEE),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFE57373), width: 0.8),
+                          ),
+                          child: const Text(
+                            'Từ chối',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.badgeRed,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -120,8 +175,54 @@ class TransactionCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(width: 4),
-            const Icon(Icons.more_vert, color: AppColors.textMuted, size: 20),
+
+            // Menu tùy chọn (Admin / Editor)
+            if (canManage && (onApprove != null || onReject != null || onDelete != null))
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: AppColors.textMuted, size: 20),
+                onSelected: (value) {
+                  if (value == 'approve' && onApprove != null) onApprove!();
+                  if (value == 'reject' && onReject != null) onReject!();
+                  if (value == 'delete' && onDelete != null) onDelete!();
+                },
+                itemBuilder: (ctx) => [
+                  if (transaction.isPending && onApprove != null)
+                    const PopupMenuItem(
+                      value: 'approve',
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle_outline, color: AppColors.success, size: 18),
+                          SizedBox(width: 8),
+                          Text('Phê duyệt', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  if (transaction.isPending && onReject != null)
+                    const PopupMenuItem(
+                      value: 'reject',
+                      child: Row(
+                        children: [
+                          Icon(Icons.cancel_outlined, color: AppColors.badgeRed, size: 18),
+                          SizedBox(width: 8),
+                          Text('Từ chối', style: TextStyle(color: AppColors.badgeRed)),
+                        ],
+                      ),
+                    ),
+                  if (onDelete != null)
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: AppColors.badgeRed, size: 18),
+                          SizedBox(width: 8),
+                          Text('Xóa giao dịch', style: TextStyle(color: AppColors.badgeRed)),
+                        ],
+                      ),
+                    ),
+                ],
+              )
+            else
+              const SizedBox(width: 8),
           ],
         ),
       ),
