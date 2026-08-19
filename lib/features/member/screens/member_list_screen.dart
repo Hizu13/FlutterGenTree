@@ -912,6 +912,8 @@ class _MemberOptionsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isMemberAdmin = member.role == 'admin' || member.role == 'owner';
     final bool isMemberEditor = member.role == 'editor';
+    final bool isSyncedWithUser = member.userId != null && member.userId! > 0;
+
 
     return Container(
       margin: const EdgeInsets.all(12),
@@ -997,36 +999,20 @@ class _MemberOptionsSheet extends StatelessWidget {
               onTap: onEdit,
             ),
 
-          // 3. Phân quyền / Hủy quyền Editor (Chỉ Admin mới có quyền)
-          if (isAdmin && !isMemberAdmin) ...[
-            if (isMemberEditor)
+          // 3. Phân quyền / Hủy quyền Editor (Chỉ Admin và CHỈ khi thành viên đã đồng bộ với tài khoản User)
+          if (isAdmin && isSyncedWithUser && !isMemberAdmin) ...[
               _buildOption(
                 context,
-                icon: Icons.remove_moderator_outlined,
-                label: 'Hủy quyền Editor (Về thành viên thường)',
-                color: AppColors.primaryMedium,
-                onTap: onToggleRole,
-              )
-            else
-              _buildOption(
-                context,
-                icon: Icons.admin_panel_settings_outlined,
-                label: 'Phân quyền Editor (Cấp quyền chỉnh sửa)',
-                color: AppColors.editorRoleText,
+              icon: isMemberEditor ? Icons.remove_moderator_outlined : Icons.admin_panel_settings_outlined,
+              label: isMemberEditor
+                  ? 'Hủy quyền Editor (Về thành viên thường)'
+                  : 'Phân quyền Editor (Cấp quyền chỉnh sửa)',
+              color: isMemberEditor ? AppColors.primaryMedium : AppColors.editorRoleText,
                 onTap: onToggleRole,
               ),
           ],
 
-          // 4. Xem trong sơ đồ gia phả
-          _buildOption(
-            context,
-            icon: Icons.account_tree_outlined,
-            label: 'Xem trong sơ đồ gia phả',
-            color: AppColors.primaryGold,
-            onTap: () => Navigator.pop(context),
-          ),
-
-          // 5. Xóa thành viên (Admin & Editor)
+          // 4. Xóa thành viên (Admin & Editor)
           if (isAdmin || isEditor) ...[
             const Divider(color: AppColors.divider, height: 1),
             _buildOption(

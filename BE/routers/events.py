@@ -517,6 +517,34 @@ def mark_event_notified(event_id: int, db: Session = Depends(get_db)):
 
     return {"detail": f"Đã đánh dấu sự kiện ID={event_id} là đã thông báo"}
 
+@router.patch("/{event_id}/approve")
+def approve_event(event_id: int, db: Session = Depends(get_db)):
+    """Phê duyệt sự kiện."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sự kiện")
+
+    event.status = "approved"
+    event.updated_at = datetime.now()
+    db.commit()
+
+    return {"detail": f"Đã phê duyệt sự kiện ID={event_id}"}
+
+
+@router.patch("/{event_id}/reject")
+def reject_event(event_id: int, db: Session = Depends(get_db)):
+    """Từ chối sự kiện."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sự kiện")
+
+    event.status = "rejected"
+    event.updated_at = datetime.now()
+    db.commit()
+
+    return {"detail": f"Đã từ chối sự kiện ID={event_id}"}
+
+
 
 @router.get("/upcoming/all", response_model=List[EventFlutterRead])
 def get_upcoming_events(
