@@ -20,6 +20,7 @@ class MemberApiService {
     }
     return u;
   }
+
   // ── GET: Lấy toàn bộ danh sách thành viên ─────────────────────────────────
   static Future<List<MemberModel>> fetchAll({int? familyId}) async {
     try {
@@ -92,8 +93,7 @@ class MemberApiService {
   // ── POST: Tạo thành viên mới ──────────────────────────────────────────────
   static Future<MemberModel> create(MemberModel member) async {
     try {
-            final url = '$_cleanBaseUrl/';
-
+      final url = '$_cleanBaseUrl/';
       try {
         // ignore: avoid_print
         print(
@@ -251,6 +251,38 @@ class MemberApiService {
         print('MemberApiService.delete -> ERROR: $e');
       } catch (_) {}
       throw Exception('Không thể xóa thành viên: $e');
+    }
+  }
+
+  // ── GET/POST: Tìm kiếm mối quan hệ huyết thống giữa 2 thành viên ─────────
+  static Future<Map<String, dynamic>?> findRelationshipPath(int fromId, int toId) async {
+    try {
+      final url = '$_cleanBaseUrl/path?from_id=$fromId&to_id=$toId';
+      try {
+        // ignore: avoid_print
+        print('MemberApiService.findRelationshipPath -> GET $url');
+      } catch (_) {}
+
+      final response = await http
+          .get(Uri.parse(url), headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final decoded = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        return decoded;
+      } else {
+        try {
+          // ignore: avoid_print
+          print('MemberApiService.findRelationshipPath -> Error ${response.statusCode}: ${response.body}');
+        } catch (_) {}
+        return null;
+      }
+    } catch (e) {
+      try {
+        // ignore: avoid_print
+        print('MemberApiService.findRelationshipPath -> Exception: $e');
+      } catch (_) {}
+      return null;
     }
   }
 }
