@@ -243,15 +243,21 @@ class MemberApiService {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
-        throw Exception('API Error ${response.statusCode}: ${response.body}');
-      }
+        String errorMsg = 'Lỗi ${response.statusCode}: ${response.body}';
+        try {
+          final bodyJson = jsonDecode(utf8.decode(response.bodyBytes));
+          if (bodyJson is Map && bodyJson.containsKey('detail')) {
+            errorMsg = bodyJson['detail'].toString();
+          }
+        } catch (_) {}
+        throw Exception(errorMsg);      }
     } catch (e) {
       try {
         // ignore: avoid_print
         print('MemberApiService.delete -> ERROR: $e');
       } catch (_) {}
-      throw Exception('Không thể xóa thành viên: $e');
-    }
+      final msg = e.toString().replaceFirst('Exception: ', '').replaceFirst('Exception: ', '');
+      throw Exception(msg);    }
   }
 
   // ── GET/POST: Tìm kiếm mối quan hệ huyết thống giữa 2 thành viên ─────────

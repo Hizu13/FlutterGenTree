@@ -341,18 +341,48 @@ def delete_member(member_id: int, db: Session = Depends(get_db)):
     if not member:
         raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
 
-    # Xóa các liên kết cha/mẹ của con cái trước khi xóa
-    children = db.query(Member).filter(
-        (Member.father_id == member_id) | (Member.mother_id == member_id)
-    ).all()
-    for child in children:
-        if child.father_id == member_id:
-            child.father_id = None
-        if child.mother_id == member_id:
-            child.mother_id = None
+    try:
+        # 1. Hủy liên kết cha/mẹ của các con trong gia phả
+        db.query(Member).filter(Member.father_id == member_id).update(
+            {Member.father_id: None}, synchronize_session=False
+        )
+        db.query(Member).filter(Member.mother_id == member_id).update(
+            {Member.mother_id: None}, synchronize_session=False
+        )
 
-    db.delete(member)
-    db.commit()
+        # 2. Xóa các quan hệ trực tiếp (vợ/chồng, v.v.) liên quan tới thành viên này
+        db.query(Relationship).filter(
+            (Relationship.person1_id == member_id) | (Relationship.person2_id == member_id)
+        ).delete(synchronize_session=False)
+
+        # 3. Xóa dữ liệu Face Recognition embeddings nếu có
+        db.query(FaceEmbedding).filter(
+            FaceEmbedding.member_id == member_id
+        ).delete(synchronize_session=False)
+
+        # 4. Xử lý các sự kiện liên kết:
+        # - Xóa sự kiện tự động sinh (sinh nhật, ngày giỗ của người này)
+        # - Giữ lại sự kiện tùy chỉnh khác nhưng set member_id = None
+        db.query(Event).filter(
+            Event.member_id == member_id,
+            Event.is_auto_generated == 1
+        ).delete(synchronize_session=False)
+        db.query(Event).filter(
+            Event.member_id == member_id
+        ).update({Event.member_id: None}, synchronize_session=False)
+
+        # 5. Xử lý các giao dịch thu chi liên kết (giữ lại lịch sử tài chính, chỉ gỡ liên kết member_id)
+        db.query(Transaction).filter(
+            Transaction.member_id == member_id
+        ).update({Transaction.member_id: None}, synchronize_session=False)
+
+        # 6. Xóa bản ghi thành viên khỏi MySQL
+        db.delete(member)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[!] Lỗi khi xóa thành viên DB ID={member_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xóa thành viên: {str(e)}")
 
     # Sync delete to Neo4j (best-effort)
     try:
