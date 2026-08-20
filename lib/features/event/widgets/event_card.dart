@@ -4,6 +4,7 @@ import '../models/event_model.dart';
 
 class EventCard extends StatelessWidget {
   final EventModel event;
+  final bool canManage;
   final Function(EventModel)? onView;
   final Function(EventModel)? onEdit;
   final Function(EventModel)? onDelete;
@@ -11,6 +12,7 @@ class EventCard extends StatelessWidget {
   const EventCard({
     super.key,
     required this.event,
+    this.canManage = false,
     this.onView,
     this.onEdit,
     this.onDelete,
@@ -18,150 +20,210 @@ class EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. DÒNG 2: Xử lý Note (Chỉ dùng event.note, bỏ hẳn subtitle)
+    // 1. Note / Chú thích
     final note = event.note;
-    final String secondLineText = (note != null && note.trim().isNotEmpty)
+    final String secondLineText = (note.trim().isNotEmpty)
         ? note
-        : 'Chưa có chú thích';
+        : (event.isBirthday
+            ? 'Sinh nhật thành viên'
+            : (event.isDeathAnniversary ? 'Ngày giỗ tưởng nhớ' : 'Sự kiện gia đình'));
 
-    // 2. DÒNG 3: Xử lý solarDate (Cung cấp fallback nếu solarDate bị null)
+    // 2. Ngày Dương lịch / Âm lịch
     final solar = event.solarDate ?? event.date;
     final String dateText = event.dateRange.isNotEmpty
         ? event.dateRange
-        : '${event.lunarDate.day.toString().padLeft(2, '0')}/${event.lunarDate.month.toString().padLeft(2, '0')} Âm lịch • ${solar.day.toString().padLeft(2, '0')}/${solar.month.toString().padLeft(2, '0')}/${solar.year}';
+        : (event.lunarDate.day > 0
+            ? '${event.lunarDate.day.toString().padLeft(2, '0')}/${event.lunarDate.month.toString().padLeft(2, '0')} Âm lịch • ${solar.day.toString().padLeft(2, '0')}/${solar.month.toString().padLeft(2, '0')}/${solar.year}'
+            : '${solar.day.toString().padLeft(2, '0')}/${solar.month.toString().padLeft(2, '0')}/${solar.year}');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border.withOpacity(0.6)),
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Icon Lịch tròn bên trái
-          Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFAF3EB),
-              shape: BoxShape.circle,
+    // 3. Icon và màu sắc theo loại sự kiện
+    final IconData eventIcon = event.isBirthday
+        ? Icons.cake_rounded
+        : (event.isDeathAnniversary
+            ? Icons.temple_buddhist_rounded
+            : Icons.calendar_month_rounded);
+
+    final Color iconBgColor = event.isBirthday
+        ? const Color(0xFFFFF3E0)
+        : (event.isDeathAnniversary
+            ? AppColors.adminRoleBg
+            : const Color(0xFFFAF3EB));
+
+    final Color iconColor = event.isBirthday
+        ? AppColors.selfPrimary
+        : (event.isDeathAnniversary
+            ? AppColors.primary
+            : AppColors.primaryMedium);
+
+    return InkWell(
+      onTap: () => onView?.call(event),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.shadowLight,
+              blurRadius: 6,
+              offset: Offset(0, 2),
             ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              color: Color(0xFF6B3812),
-              size: 22,
+          ],
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Icon theo loại sự kiện
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                eventIcon,
+                color: iconColor,
+                size: 22,
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
+            const SizedBox(width: 14),
 
-          // Khối nội dung 3 dòng
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // DÒNG 1: Tên sự kiện
-                Text(
-                  event.title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2C1810),
+            // Khối nội dung 3 dòng
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // DÒNG 1: Tên sự kiện + Tag tự động
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          event.title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (event.isAutoGenerated) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceWarm,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: AppColors.borderWarm),
+                          ),
+                          child: const Text(
+                            'Tự động',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryMedium,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
+                  const SizedBox(height: 4),
 
-                // DÒNG 2: Note / Chú thích
-                Text(
-                  secondLineText,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-
-                // DÒNG 3: Ngày Âm lịch & Dương lịch
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 14,
+                  // DÒNG 2: Note / Chú thích
+                  Text(
+                    secondLineText,
+                    style: const TextStyle(
+                      fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        dateText,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppColors.textSecondary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+
+                  // DÒNG 3: Ngày Âm lịch & Dương lịch
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_outlined,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          dateText,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Menu 3 chấm góc phải (CHỈ hiển thị cho Admin & Editor)
+            if (canManage)
+              PopupMenuButton<String>(
+                icon: const Icon(
+                  Icons.more_vert_rounded,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+                onSelected: (value) {
+                  if (value == 'view') onView?.call(event);
+                  if (value == 'edit') onEdit?.call(event);
+                  if (value == 'delete') onDelete?.call(event);
+                },
+                itemBuilder: (context) => [
+                  if (onView != null)
+                    const PopupMenuItem(
+                      value: 'view',
+                      child: Row(
+                        children: [
+                          Icon(Icons.visibility_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text('Xem chi tiết'),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Menu 3 chấm góc phải
-          PopupMenuButton<String>(
-            icon: const Icon(
-              Icons.more_vert_rounded,
-              color: AppColors.textSecondary,
-              size: 20,
-            ),
-            onSelected: (value) {
-              if (value == 'view') onView?.call(event);
-              if (value == 'edit') onEdit?.call(event);
-              if (value == 'delete') onDelete?.call(event);
-            },
-            itemBuilder: (context) => [
-              if (onView != null)
-                const PopupMenuItem(
-                  value: 'view',
-                  child: Row(
-                    children: [
-                      Icon(Icons.visibility_outlined, size: 18),
-                      SizedBox(width: 8),
-                      Text('Xem chi tiết'),
-                    ],
-                  ),
-                ),
-              if (onEdit != null)
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_outlined, size: 18),
-                      SizedBox(width: 8),
-                      Text('Sửa'),
-                    ],
-                  ),
-                ),
-              if (onDelete != null)
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Xóa', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ],
+                  if (onEdit != null)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text('Sửa'),
+                        ],
+                      ),
+                    ),
+                  if (onDelete != null)
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, size: 18, color: AppColors.error),
+                          SizedBox(width: 8),
+                          Text('Xóa', style: TextStyle(color: AppColors.error)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

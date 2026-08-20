@@ -4,14 +4,19 @@ import '../models/member_model.dart';
 
 /// Widget thẻ thành viên hiển thị trong danh sách.
 /// Thiết kế theo phác thảo Figma: avatar tròn + badge đời, thông tin cơ bản.
+/// Hỗ trợ đổi màu cam nhận diện cho tài khoản của bản thân (isSelf).
 class MemberCard extends StatelessWidget {
   final MemberModel member;
+  final bool canManage;
+  final bool isSelf;
   final VoidCallback? onTap;
   final VoidCallback? onMoreTap;
 
   const MemberCard({
     super.key,
     required this.member,
+    this.canManage = false,
+    this.isSelf = false,
     this.onTap,
     this.onMoreTap,
   });
@@ -20,63 +25,141 @@ class MemberCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isMale = member.gender == 'Nam';
     final bool isAlive = member.status == 'Còn sống';
+    final bool isMemberAdmin = member.role == 'admin' || member.role == 'owner';
+    final bool isMemberEditor = member.role == 'editor';
+
+    // Màu chủ đạo cho thẻ (Màu cam nếu là bản thân, ngược lại màu Nam/Nữ)
+    final Color primaryColor = isSelf
+        ? AppColors.selfPrimary
+        : (isMale ? AppColors.male : AppColors.female);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-          boxShadow: const [
+          color: isSelf ? AppColors.selfCardBg : AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelf ? AppColors.selfCardBorder : AppColors.border,
+            width: isSelf ? 1.5 : 1.0,
+          ),
+          boxShadow: [
             BoxShadow(
-              color: AppColors.shadow,
-              blurRadius: 4,
-              offset: Offset(0, 2),
+              color: isSelf
+                  ? AppColors.selfShadow
+                  : AppColors.shadow,
+              blurRadius: 6,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ── Avatar + Badge Đời ──────────────────────────────────────
+            // ── Avatar ──────────────────────────────────────────────────
             _buildAvatarWithBadge(isMale),
 
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
 
             // ── Thông tin thành viên ────────────────────────────────────
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tên + nút ba chấm
+                  // Tên + Badge [Bạn] + Role Badge + nút ba chấm
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: Text(
-                          member.fullName,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                            height: 1.2,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                member.fullName,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSelf
+                                      ? AppColors.selfText
+                                      : AppColors.textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (isSelf) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.selfPrimary,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'Bạn',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (isMemberAdmin) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.adminRoleBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.adminRoleBorder),
+                                ),
+                                child: const Text(
+                                  'Quản trị',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.adminRoleText,
+                                  ),
+                                ),
+                              ),
+                            ] else if (isMemberEditor) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.editorRoleBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.editorRoleBorder),
+                                ),
+                                child: const Text(
+                                  'Biên tập',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.editorRoleText,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (canManage) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: onMoreTap,
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.more_horiz_rounded,
+                              size: 20,
+                              color: AppColors.textMuted,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: onMoreTap,
-                        child: const Icon(
-                          Icons.more_horiz_rounded,
-                          size: 20,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
+                      ],
                     ],
                   ),
 
@@ -92,15 +175,15 @@ class MemberCard extends StatelessWidget {
                             children: [
                               const Icon(
                                 Icons.location_on_outlined,
-                                size: 13,
+                                size: 14,
                                 color: AppColors.textSecondary,
                               ),
-                              const SizedBox(width: 3),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   member.currentAddress ?? member.placeOfBirth ?? '',
                                   style: const TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 13,
                                     color: AppColors.textSecondary,
                                   ),
                                   maxLines: 1,
@@ -118,14 +201,14 @@ class MemberCard extends StatelessWidget {
                           children: [
                             const Icon(
                               Icons.phone_outlined,
-                              size: 13,
+                              size: 14,
                               color: AppColors.textSecondary,
                             ),
-                            const SizedBox(width: 3),
+                            const SizedBox(width: 6),
                             Text(
                               member.phoneNumber!,
                               style: const TextStyle(
-                                fontSize: 11.5,
+                                fontSize: 13,
                                 color: AppColors.textSecondary,
                               ),
                             ),
@@ -135,30 +218,27 @@ class MemberCard extends StatelessWidget {
                     ],
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
 
                   // Hàng 2: Ngày sinh + Giới tính
                   Row(
                     children: [
                       // Ngày sinh
-                      if (member.dateOfBirth != null)
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.cake_outlined,
-                              size: 13,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              member.dateOfBirth!,
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
+                      if (member.dateOfBirth != null) ...[
+                        const Icon(
+                          Icons.cake_outlined,
+                          size: 14,
+                          color: AppColors.textSecondary,
                         ),
+                        const SizedBox(width: 6),
+                        Text(
+                          member.dateOfBirth!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
 
                       const Spacer(),
 
@@ -167,16 +247,16 @@ class MemberCard extends StatelessWidget {
                         children: [
                           Icon(
                             isMale ? Icons.male_rounded : Icons.female_rounded,
-                            size: 15,
-                            color: isMale ? AppColors.male : AppColors.female,
+                            size: 16,
+                            color: primaryColor,
                           ),
-                          const SizedBox(width: 2),
+                          const SizedBox(width: 6),
                           Text(
                             member.gender,
                             style: TextStyle(
-                              fontSize: 11.5,
-                              color: isMale ? AppColors.male : AppColors.female,
-                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                              color: primaryColor,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -213,25 +293,33 @@ class MemberCard extends StatelessWidget {
   }
 
   Widget _buildAvatarWithBadge(bool isMale) {
+    final Color borderColor = isSelf
+        ? AppColors.selfBorder
+        : (isMale ? AppColors.male : AppColors.female);
+
+    final Color bgColor = isSelf
+        ? AppColors.selfBg
+        : (isMale ? AppColors.maleBg : AppColors.femaleBg);
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
         // Avatar tròn
         Container(
-          width: 60,
-          height: 60,
+          width: 72,
+          height: 72,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: isMale ? AppColors.male : AppColors.female,
+              color: borderColor,
               width: 2,
             ),
-            color: isMale ? AppColors.maleBg : AppColors.femaleBg,
+            color: bgColor,
           ),
           child: ClipOval(
-            child: member.avatarUrl != null && member.avatarUrl!.isNotEmpty
+            child: member.resolvedAvatarUrl != null && member.resolvedAvatarUrl!.isNotEmpty
                 ? Image.network(
-                    member.avatarUrl!,
+                    member.resolvedAvatarUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stack) => _buildDefaultAvatar(isMale),
                   )
@@ -242,23 +330,27 @@ class MemberCard extends StatelessWidget {
         // Badge Đời (phía dưới trái avatar)
         if (member.generation != null)
           Positioned(
-            bottom: -4,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryMedium,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Đời ${member.generation}',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+            bottom: -6,
+            left: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelf ? AppColors.selfPrimary : AppColors.primaryMedium,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: AppColors.shadowMedium,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
                   ),
+                ],
+              ),
+              child: Text(
+                'Đời ${member.generation}',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -268,10 +360,14 @@ class MemberCard extends StatelessWidget {
   }
 
   Widget _buildDefaultAvatar(bool isMale) {
+    final Color iconColor = isSelf
+        ? AppColors.selfPrimary
+        : (isMale ? AppColors.male : AppColors.female);
+
     return Icon(
-      isMale ? Icons.person_outline_rounded : Icons.person_outline_rounded,
+      Icons.person_outline_rounded,
       size: 32,
-      color: isMale ? AppColors.male : AppColors.female,
+      color: iconColor,
     );
   }
 }

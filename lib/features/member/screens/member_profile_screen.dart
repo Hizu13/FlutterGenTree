@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../../../config/app_color.dart';
 import '../models/member_model.dart';
 import 'add_member_screen.dart';
+import '../repositories/member_repository.dart';
+
 
 /// Màn hình Hồ Sơ Thành Viên.
 /// Thiết kế theo Figma: AppBar nâu, avatar lớn, 4 stat card,
@@ -10,6 +12,7 @@ import 'add_member_screen.dart';
 class MemberProfileScreen extends StatefulWidget {
   final MemberModel member;
   final List<MemberModel> allMembers;
+  final bool canManage;
   final ValueChanged<MemberModel>? onUpdated;
   final ValueChanged<MemberModel>? onMemberAdded;
 
@@ -17,6 +20,7 @@ class MemberProfileScreen extends StatefulWidget {
     super.key,
     required this.member,
     required this.allMembers,
+    this.canManage = false,
     this.onUpdated,
     this.onMemberAdded,
   });
@@ -85,12 +89,19 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
         builder: (_) => AddMemberScreen(
           existingMembers: widget.allMembers,
           initialMember: _member,
-          onSaved: (updated) {
-            setState(() => _member = updated);
-            widget.onUpdated?.call(updated);
+          onSaved: (updated) async {
+            if (_member.id == null) return;
+            try {
+              final result = await MemberRepository.updateMember(
+                _member.id!,
+                updated,
+              );
+              if (mounted) {
+                setState(() => _member = result);
+                widget.onUpdated?.call(result);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Đã cập nhật: ${updated.fullName}'),
+                    content: Text('Đã cập nhật: ${result.fullName}'),
                 backgroundColor: AppColors.primaryMedium,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -98,7 +109,22 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
                 ),
                 duration: const Duration(seconds: 2),
               ),
-            );
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi khi lưu vào cơ sở dữ liệu: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
+            }
           },
         ),
       ),
@@ -110,11 +136,14 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
       MaterialPageRoute(
         builder: (_) => AddMemberScreen(
           existingMembers: widget.allMembers,
-          onSaved: (newMember) {
-            widget.onMemberAdded?.call(newMember);
+          onSaved: (newMember) async {
+            try {
+              final created = await MemberRepository.addMember(newMember);
+              if (mounted) {
+                widget.onMemberAdded?.call(created);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Đã thêm thành viên: ${newMember.fullName}'),
+                    content: Text('Đã thêm thành viên: ${created.fullName}'),
                 backgroundColor: AppColors.primaryMedium,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -122,7 +151,22 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
                 ),
                 duration: const Duration(seconds: 2),
               ),
-            );
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi khi thêm thành viên: $e'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
+            }
           },
         ),
       ),
@@ -207,67 +251,69 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
               ),
             ),
           ),
-          GestureDetector(
-            onTap: _onEdit,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white30),
+          if (widget.canManage) ...[
+            GestureDetector(
+              onTap: _onEdit,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white30),
+                    ),
+                    child: const Icon(
+                      Icons.edit_outlined,
+                      color: Colors.white,
+                      size: 17,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.edit_outlined,
-                    color: Colors.white,
-                    size: 17,
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Chỉnh sửa',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'Chỉnh sửa',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: _onAdd,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white30),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: _onAdd,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white30),
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    color: Colors.white,
-                    size: 20,
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Thêm',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'Thêm',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -290,9 +336,9 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
             ),
           ),
           child: ClipOval(
-            child: _member.avatarUrl != null && _member.avatarUrl!.isNotEmpty
+            child: _member.resolvedAvatarUrl != null && _member.resolvedAvatarUrl!.isNotEmpty
                 ? Image.network(
-                    _member.avatarUrl!,
+                    _member.resolvedAvatarUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stack) => _buildDefaultAvatar(isMale),
                   )

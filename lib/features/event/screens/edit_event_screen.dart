@@ -26,7 +26,8 @@ class EditEventScreen extends StatelessWidget {
       ),
       body: EventForm(
         initialEvent: event,
-        submitButtonText: 'Yêu cầu phê duyệt',
+        canManage: true,
+        customSubmitText: 'Lưu thay đổi',
         onSubmit: (updatedEvent) {
           onEditEvent?.call(updatedEvent);
           Navigator.pop(context);
